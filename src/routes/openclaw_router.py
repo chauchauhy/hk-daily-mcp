@@ -2,6 +2,7 @@
 import re
 import asyncio
 import logging
+import requests
 from datetime import datetime, timezone
 
 from fastapi import APIRouter
@@ -34,13 +35,21 @@ def _calc_remaining_minutes(eta_str: str) -> int | None:
 
 
 def _get_news_summary(keyword: str) -> list:
-    import newsapi
-    news_api_key = EnvLoadUtil.load_env("NEWS_API_KEY")
-    newsapi_client = newsapi.NewsApiClient(api_key=news_api_key)
+    newsapi_key = EnvLoadUtil.load_env("NEWS_API_KEY")
+    if not newsapi_key:
+        logger.error("NEWS_API_KEY is not set or empty in .env")
+        return []
+    
+    url = ('https://newsapi.org/v2/everything?'
+       'q={keyword}&'
+       'sortBy=publishedAt&'
+       'language=en&'
+       'apiKey={newsapi_key}').format(keyword=keyword, newsapi_key=newsapi_key)
+    
     try:
-        news_data = newsapi_client.get_everything( 
-            q=keyword, page_size=10, sort_by="publishedAt", language="en"
-        )
+        response = requests.get(url)
+        news_data = response.json()
+        
         logger.info(f"Raw response status: {news_data.get('status')}")
         logger.info(f"Total results: {news_data.get('totalResults')}")
         logger.info(f"Articles count: {len(news_data.get('articles', []))}")
@@ -149,7 +158,7 @@ async def get_hko_router():
 
 @router.get("/dailySummary/{lang}/{keyword}/{address}/{router}")
 async def get_daily_summary(lang: str, keyword: str,address: str, router: str):
-    logger.info(f"Fetching daily summary for language: {lang}, address: {address}, router: {router}...")
+    logger.info(f"Fetching daily summary for language: {lang}, address: {address}, router: {router}, keyword: {keyword}...")
 
     # Geocode once — shared by weather and transport; failures yield empty sections, not 500
     try:
@@ -177,6 +186,7 @@ async def get_daily_summary(lang: str, keyword: str,address: str, router: str):
     if isinstance(transport_result, Exception):
         transport_result = {"error": str(transport_result)}
     if isinstance(news_result, Exception):
+        logger.error(f"News task raised an exception: {str(news_result)}")
         news_result = []
 
     return {
