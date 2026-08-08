@@ -65,7 +65,7 @@ sampleData/
 
 # Environments
 .env
-.env.*
+# .env.*
 *.local
 
 # IDEs and editors
