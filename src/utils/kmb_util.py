@@ -2,8 +2,10 @@
 import os 
 import logging 
 import json 
+import ssl
 from scipy.spatial import KDTree
 import numpy as np
+import certifi
 
 from geopy.geocoders import Nominatim
 
@@ -129,7 +131,13 @@ class KMBRouterUtil:
     @staticmethod
     def _geocode_address(address: str) -> Nominatim | None:
         try:
-            geolocator = Nominatim(user_agent="daily_data_assistant", timeout=10)
+            # certifi CA bundle: the system Python CA store may miss issuers
+            # that certifi carries (e.g. Nominatim's chain on some machines).
+            geolocator = Nominatim(
+                user_agent="daily_data_assistant",
+                timeout=10,
+                ssl_context=ssl.create_default_context(cafile=certifi.where()),
+            )
             logger.info(f"Geocoding address: {address}")
             location = geolocator.geocode(address, timeout=10)
             logger.info(f"Geocoding result: lat={location.latitude if location else 'N/A'}, lon={location.longitude if location else 'N/A'}")

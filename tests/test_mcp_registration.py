@@ -12,6 +12,9 @@ EXPECTED_TOOLS = {
     "hko_get_weather_forecast",
     "hko_get_nearby_weather",
     "daily_summary",
+    "hko_get_9day_forecast",
+    "hko_get_weather_warnings",
+    "hko_get_special_weather_tips",
 }
 
 

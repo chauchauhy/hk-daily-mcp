@@ -67,6 +67,24 @@ async def daily_summary(lang: str, keyword: str, address: str, route: str) -> di
     return await daily_summary_service.get_daily_summary(lang, keyword, address, route)
 
 
+@mcp.tool()
+async def hko_get_9day_forecast(lang: str = "tc") -> dict:
+    """Fetch the HKO 9-day weather forecast."""
+    return await weather_service.get_9day_forecast(lang)
+
+
+@mcp.tool()
+async def hko_get_weather_warnings(lang: str = "tc") -> dict:
+    """Fetch active HKO weather warnings (e.g. typhoon, rainstorm signals) with details."""
+    return await weather_service.get_weather_warnings(lang)
+
+
+@mcp.tool()
+async def hko_get_special_weather_tips(lang: str = "tc") -> dict:
+    """Fetch HKO special weather tips."""
+    return await weather_service.get_special_weather_tips(lang)
+
+
 # Starlette app served by the host (mounted at /mcp in main.py).
 mcp_http_app = mcp.streamable_http_app(streamable_http_path="/")
 

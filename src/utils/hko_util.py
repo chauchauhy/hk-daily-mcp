@@ -1,7 +1,12 @@
 # pylint: disable=W0603,E0402,W1203
 import asyncio
+import json
 import logging 
+import os
+import ssl
 from haversine import haversine, Unit
+
+import certifi
 
 
 from .env_load_util import EnvLoadUtil
@@ -16,8 +21,14 @@ logger = logging.getLogger(__name__)
 
 class HKORouterUtil:
     def __init__(self):
-        self.geolocator = Nominatim(user_agent="bus_tracker_hko")
+        # certifi CA bundle: the system Python CA store may miss issuers
+        # that certifi carries (e.g. Nominatim's chain on some machines).
+        self.geolocator = Nominatim(
+            user_agent="bus_tracker_hko",
+            ssl_context=ssl.create_default_context(cafile=certifi.where()),
+        )
         self.place_coordinates_cache = {}
+        self._station_coords = None
 
     @staticmethod
     async def fetch_hko_flw_data(lang: str = "tc") -> HkoFLWResponse:
@@ -54,6 +65,39 @@ class HKORouterUtil:
         else:
             logger.error(f"Failed to fetch HKO weather data for data_type {data_type}. Status code: {response.status_code}")
             return ""
+
+    def _load_station_coords(self) -> dict:
+        """Static HKO station/district coordinates bundled in res/.
+
+        Loaded once and cached on the instance. Places missing from the
+        bundle fall back to live geocoding in _resolve_coords.
+        """
+        if self._station_coords is None:
+            self._station_coords = {}
+            file_path = os.path.normpath(os.path.join(
+                EnvLoadUtil.load_env("BASE_FOLDER"), "res", "hko_station_coords.json"))
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    self._station_coords = json.load(f)
+                logger.info(f"Loaded {len(self._station_coords)} bundled station coordinates")
+            except Exception as e:
+                logger.warning(f"Bundled station coords unavailable ({file_path}): {str(e)}")
+        return self._station_coords
+
+    async def _resolve_coords(self, place_name: str, region: str = "Hong Kong") -> tuple | None:
+        """Resolve a station/district place to (lat, lon).
+
+        Prefers the committed bundle (no network, no rate-limit sleep);
+        falls back to live Nominatim geocoding for places not bundled.
+        """
+        bundle = self._load_station_coords()
+        if place_name in bundle:
+            lat, lon = bundle[place_name]
+            return (lat, lon)
+        cache_key = f"{place_name}, {region}"
+        if cache_key not in self.place_coordinates_cache:
+            await asyncio.sleep(1.1)
+        return self._geocode_place(place_name, region)
 
     def _geocode_place(self, place_name: str, region: str = "Hong Kong") -> tuple:
         """
@@ -102,30 +146,7 @@ class HKORouterUtil:
             logger.error("Failed to fetch RHRREAD data")
             return {"error": "Failed to fetch weather data"}
         
-        # Step 2: Extract all temperature station locations and geocode them
-        logger.info("Extracting and geocoding temperature station locations...")
-        stations_with_coords = []
-        
-        for temp_data in rhrread_data.temperature.data:
-            cache_key = f"{temp_data.place}, Hong Kong"
-            if cache_key not in self.place_coordinates_cache:
-                await asyncio.sleep(1.1)
-            coords = self._geocode_place(temp_data.place)
-            if coords:
-                stations_with_coords.append({
-                    "place": temp_data.place,
-                    "value": temp_data.value,
-                    "unit": temp_data.unit,
-                    "lat": coords[0],
-                    "lon": coords[1]
-                })
-        
-        if not stations_with_coords:
-            logger.error("No stations could be geocoded")
-            return {"error": "Could not geocode weather stations"}
-        
-        logger.info(f"Successfully geocoded {len(stations_with_coords)} stations")
-        
+        # Step 2: Resolve the user address first (fail fast before station work)
         if user_coords:
             logger.info(f"Using pre-computed coordinates for '{address}': {user_coords}")
         else:
@@ -135,19 +156,84 @@ class HKORouterUtil:
                 logger.error(f"Could not geocode user address: {address}")
                 return {"error": f"Could not geocode address: {address}"}
             logger.info(f"User address geocoded to: {user_coords}")
+
+        # Step 3: Temperature stations (coords from the committed bundle,
+        # live geocode only for places missing from it)
+        logger.info("Resolving temperature station locations...")
+        stations_with_coords = []
+
+        for temp_data in rhrread_data.temperature.data:
+            coords = await self._resolve_coords(temp_data.place)
+            if coords:
+                stations_with_coords.append({
+                    "place": temp_data.place,
+                    "value": temp_data.value,
+                    "unit": temp_data.unit,
+                    "lat": coords[0],
+                    "lon": coords[1]
+                })
+
+        if not stations_with_coords:
+            logger.error("No stations could be geocoded")
+            return {"error": "Could not geocode weather stations"}
+
+        logger.info(f"Successfully resolved {len(stations_with_coords)} stations")
+
         # Step 4: Haversine
         logger.info("Calculating distances to all weather stations...")
         for station in stations_with_coords:
             station_coords = (station["lat"], station["lon"])
             distance = haversine(user_coords, station_coords, unit=Unit.METERS)
             station["distance_km"] = round(distance, 2)
-        
+
         # Step 5: Sort by distance and get top N nearest stations
         stations_with_coords.sort(key=lambda x: x["distance_km"])
         nearby_stations = stations_with_coords[:top_n]
-        
+
         logger.info(f"Found {len(nearby_stations)} nearby stations")
-        
+
+        # Step 6: Nearest humidity station (usually a single station)
+        nearby_humidity = None
+        for humidity_data in rhrread_data.humidity.data:
+            coords = await self._resolve_coords(humidity_data.place)
+            if not coords:
+                continue
+            distance = round(haversine(user_coords, coords, unit=Unit.METERS), 2)
+            entry = {
+                "place": humidity_data.place,
+                "value": humidity_data.value,
+                "unit": humidity_data.unit,
+                "lat": coords[0],
+                "lon": coords[1],
+                "distance_km": distance,
+            }
+            if nearby_humidity is None or entry["distance_km"] < nearby_humidity["distance_km"]:
+                nearby_humidity = entry
+
+        # Step 7: Nearest rainfall district
+        nearby_rainfall = None
+        for rainfall_data in rhrread_data.rainfall.data:
+            coords = await self._resolve_coords(rainfall_data.place)
+            if not coords:
+                continue
+            distance = round(haversine(user_coords, coords, unit=Unit.METERS), 2)
+            entry = {
+                "place": rainfall_data.place,
+                "max": rainfall_data.max,
+                "main": rainfall_data.main,
+                "unit": rainfall_data.unit,
+                "lat": coords[0],
+                "lon": coords[1],
+                "distance_km": distance,
+            }
+            if nearby_rainfall is None or entry["distance_km"] < nearby_rainfall["distance_km"]:
+                nearby_rainfall = entry
+
+        # Step 8: UV index as reported (may be empty outside daylight hours)
+        uvindex = rhrread_data.uvindex
+        if not isinstance(uvindex, str):
+            uvindex = uvindex.model_dump(mode="json")
+
         return {
             "user_address": address,
             "user_coordinates": {
@@ -155,7 +241,10 @@ class HKORouterUtil:
                 "lon": user_coords[1]
             },
             "record_time": rhrread_data.temperature.recordTime,
-            "nearby_stations": nearby_stations
+            "nearby_stations": nearby_stations,
+            "nearby_humidity": nearby_humidity,
+            "nearby_rainfall": nearby_rainfall,
+            "uvindex": uvindex,
         }
         
 _GLOBAL_HKO_ROUTER_UTIL_INSTANCE = None

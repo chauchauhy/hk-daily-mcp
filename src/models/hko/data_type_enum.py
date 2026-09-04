@@ -2,8 +2,8 @@ from enum import Enum
 
 class DataTypeEnum(Enum):
     FLW = "flw"
-    # FND = "fnd"
+    FND = "fnd"
     RHRREAD = "rhrread"
-    # WARNSUM = "warnsum"
-    # WARNINGINFO = "warningInfo"
-    # SWT = "swt"
+    WARNSUM = "warnsum"
+    WARNINGINFO = "warningInfo"
+    SWT = "swt"
