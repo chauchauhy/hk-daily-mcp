@@ -15,7 +15,7 @@ import logging
 
 from mcp.server import MCPServer
 
-from utils import air_quality_service, daily_summary_service, holiday_service, kmb_service, tide_service, weather_service
+from utils import air_quality_service, daily_summary_service, holiday_service, kmb_service, mtr_service, tide_service, weather_service
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +110,12 @@ async def hko_get_tide_predictions(station: str = "CCH", date: str | None = None
 async def hk_get_air_quality(station: str = "all") -> dict:
     """Current Air Quality Health Index by monitoring station ('all' or a station/district name)."""
     return await air_quality_service.get_air_quality(station)
+
+
+@mcp.tool()
+async def mtr_get_next_train(line: str, station: str) -> dict:
+    """Live MTR next-train arrivals. line and station accept codes (TWL/TSW) or names."""
+    return await mtr_service.get_mtr_next_train(line, station)
 
 
 # Starlette app served by the host (mounted at /mcp in main.py).

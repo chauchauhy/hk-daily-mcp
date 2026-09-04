@@ -19,6 +19,7 @@ EXPECTED_TOOLS = {
     "hk_get_public_holidays",
     "hko_get_tide_predictions",
     "hk_get_air_quality",
+    "mtr_get_next_train",
 }
 
 
