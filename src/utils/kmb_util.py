@@ -74,6 +74,32 @@ class KMBRouterUtil:
         response = await httpx_util.get_all(formatted_url)
         eta_response = KMBStopETAResponse(**response.json()) if response.status_code == 200 else None
         return eta_response
+
+    @staticmethod
+    async def fetch_kmb_route_stops(route: str, bound: str, service_type: int = 1) -> dict | None:
+        """Fetch the ordered stop list of a route bound. bound: inbound|outbound."""
+        url = EnvLoadUtil.KMB_ETA_ROUTE_URL
+        formatted_url = url.format(route=route, direction=bound, service_type=service_type)
+        logger.info(f"Fetching KMB route stops: {formatted_url}")
+        httpx_util = get_global_httpx_util()
+        response = await httpx_util.get_all(formatted_url)
+        if response.status_code == 200:
+            return response.json()
+        logger.error(f"Failed to fetch KMB route stops. Status code: {response.status_code}")
+        return None
+
+    @staticmethod
+    async def fetch_kmb_route_eta(route: str, service_type: int = 1) -> dict | None:
+        """Fetch live ETAs for every stop of a route (entries keyed by stop seq)."""
+        url = EnvLoadUtil.KMB_ROUTE_ETA_URL
+        formatted_url = url.format(route=route, service_type=service_type)
+        logger.info(f"Fetching KMB route ETAs: {formatted_url}")
+        httpx_util = get_global_httpx_util()
+        response = await httpx_util.get_all(formatted_url)
+        if response.status_code == 200:
+            return response.json()
+        logger.error(f"Failed to fetch KMB route ETAs. Status code: {response.status_code}")
+        return None
     
     @staticmethod
     async def fetch_kmb_stop() -> StopListResponse:

@@ -50,6 +50,15 @@ async def kmb_get_bus_eta(address: str, route_number: str | None = None) -> dict
 
 
 @mcp.tool()
+async def kmb_get_route_itinerary(route: str, bound: str = "outbound", service_type: int = 1) -> dict:
+    """Return the ordered stops of a KMB route bound, each with live ETAs.
+
+    bound is 'inbound' or 'outbound'.
+    """
+    return await kmb_service.get_route_itinerary(route, bound, service_type)
+
+
+@mcp.tool()
 async def hko_get_weather_forecast(lang: str = "tc") -> dict | None:
     """Fetch the HKO local weather forecast (general situation, forecast, outlook)."""
     return await weather_service.get_weather_forecast(lang)

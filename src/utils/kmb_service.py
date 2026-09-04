@@ -119,3 +119,88 @@ async def get_stop_eta_workflow(address: str, route_filter: str = None) -> dict:
         "stops_with_eta": stops_with_eta,
         "search_radius_degrees": float(EnvLoadUtil.load_env("KMB_NEAR_STOP_DISTANCE", "0.003")),
     }
+
+
+BOUND_ALIASES = {
+    "inbound": "inbound", "in": "inbound", "i": "inbound",
+    "outbound": "outbound", "out": "outbound", "o": "outbound",
+}
+
+
+async def get_route_itinerary(route: str, bound: str = "outbound", service_type: int = 1) -> dict:
+    """Route itinerary: ordered stops of a route bound, each with live ETAs.
+
+    Joins route-stop/{route}/{bound}/{service_type} (stop order) with
+    route-eta/{route}/{service_type} (live ETAs keyed by stop seq) and the
+    cached full stop list (names + coordinates).
+    """
+    normalized = BOUND_ALIASES.get(str(bound).lower())
+    if normalized is None:
+        return {
+            "error": f"Invalid bound: {bound}",
+            "route": route,
+            "details": "bound must be 'inbound' or 'outbound'.",
+        }
+    logger.info(f"Fetching itinerary for route {route} {normalized} service_type {service_type}...")
+
+    try:
+        route_stops = await kmb_util.KMBRouterUtil.fetch_kmb_route_stops(route, normalized, service_type)
+        if not route_stops or not route_stops.get("data"):
+            return {
+                "error": "Route stops not found",
+                "route": route,
+                "bound": normalized,
+                "service_type": service_type,
+                "details": "No stop list returned. Check the route number and service type.",
+            }
+
+        # Stop details come from the cached full stop list (no per-stop HTTP).
+        stop_list = await kmb_util.KMBRouterUtil.fetch_kmb_stop()
+        stop_by_id = {stop.stop: stop for stop in stop_list.data} if stop_list else {}
+
+        route_etas = await kmb_util.KMBRouterUtil.fetch_kmb_route_eta(route, service_type) or {}
+        etas_by_seq: dict[int, list] = {}
+        for entry in route_etas.get("data", []):
+            try:
+                seq_key = int(entry.get("seq", 0))
+            except (TypeError, ValueError):
+                continue
+            etas_by_seq.setdefault(seq_key, []).append({
+                "eta_seq": entry.get("eta_seq"),
+                "eta": entry.get("eta"),
+                "destination_en": entry.get("dest_en"),
+                "destination_tc": entry.get("dest_tc"),
+                "destination_sc": entry.get("dest_sc"),
+                "remarks_en": entry.get("rmk_en"),
+                "remarks_tc": entry.get("rmk_tc"),
+                "remarks_sc": entry.get("rmk_sc"),
+                "data_timestamp": entry.get("data_timestamp"),
+            })
+
+        stops = []
+        for item in sorted(route_stops["data"], key=lambda x: int(x.get("seq", 0))):
+            stop_id = item.get("stop")
+            seq = int(item.get("seq", 0))
+            detail = stop_by_id.get(stop_id)
+            stops.append({
+                "seq": seq,
+                "stop_id": stop_id,
+                "stop_name_en": detail.name_en if detail else None,
+                "stop_name_tc": detail.name_tc if detail else None,
+                "stop_name_sc": detail.name_sc if detail else None,
+                "latitude": detail.lat if detail else None,
+                "longitude": detail.long if detail else None,
+                "etas": etas_by_seq.get(seq, []),
+            })
+
+        logger.info(f"Itinerary complete: route {route} {normalized}, {len(stops)} stops")
+        return {
+            "route": route,
+            "bound": normalized,
+            "service_type": service_type,
+            "stops_count": len(stops),
+            "stops": stops,
+        }
+    except Exception as e:
+        logger.error(f"Error in get_route_itinerary: {str(e)}")
+        return {"error": str(e), "route": route, "bound": normalized}
