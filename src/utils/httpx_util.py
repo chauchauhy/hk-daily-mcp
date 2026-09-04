@@ -15,16 +15,16 @@ class HttpxUtil:
         response = await self.client.post(url, json=data, headers=headers)
         return response
     
-    async def get_all(self, url: str) -> httpx.Response:
-        response = await self._get(url, params=None, headers=None)
+    async def get_all(self, url: str, follow_redirects: bool = False) -> httpx.Response:
+        response = await self._get(url, params=None, headers=None, follow_redirects=follow_redirects)
         return response
 
-    async def _get(self, url: str, params: dict = None, headers: dict = None) -> httpx.Response:
+    async def _get(self, url: str, params: dict = None, headers: dict = None, follow_redirects: bool = False) -> httpx.Response:
         response: httpx.Response = None
         if params is None or headers is None:
-            response = await self.client.get(url)
+            response = await self.client.get(url, follow_redirects=follow_redirects)
         else:
-            response = await self.client.get(url, params=params, headers=headers)
+            response = await self.client.get(url, params=params, headers=headers, follow_redirects=follow_redirects)
         return response
     
     async def close(self):

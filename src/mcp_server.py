@@ -15,7 +15,7 @@ import logging
 
 from mcp.server import MCPServer
 
-from utils import air_quality_service, daily_summary_service, holiday_service, kmb_service, mtr_service, tide_service, weather_service
+from utils import air_quality_service, daily_summary_service, ferry_service, holiday_service, kmb_service, mtr_service, tide_service, weather_service
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +116,22 @@ async def hk_get_air_quality(station: str = "all") -> dict:
 async def mtr_get_next_train(line: str, station: str) -> dict:
     """Live MTR next-train arrivals. line and station accept codes (TWL/TSW) or names."""
     return await mtr_service.get_mtr_next_train(line, station)
+
+
+@mcp.tool()
+async def ferry_get_schedule(operator: str, route: str, direction: str | None = None) -> dict:
+    """Ferry schedules. operator: hkkf, sunferry or starferry. direction (hkkf only): inbound/outbound."""
+    return await ferry_service.get_ferry_schedule(operator, route, direction)
+
+
+@mcp.tool()
+async def hk_daily_brief(address: str, lang: str = "tc", domains: list[str] | None = None,
+                         keyword: str = "Hong Kong", route: str | None = None,
+                         tide_station: str = "CCH", date: str | None = None,
+                         year: int | None = None, aqhi_station: str = "all") -> dict:
+    """Broad daily briefing. Default domains: weather, holidays, tide, air_quality; transport/news are opt-in."""
+    return await daily_summary_service.get_daily_brief(
+        address, lang, domains, keyword, route, tide_station, date, year, aqhi_station)
 
 
 # Starlette app served by the host (mounted at /mcp in main.py).

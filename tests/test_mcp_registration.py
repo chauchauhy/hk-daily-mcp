@@ -20,6 +20,8 @@ EXPECTED_TOOLS = {
     "hko_get_tide_predictions",
     "hk_get_air_quality",
     "mtr_get_next_train",
+    "ferry_get_schedule",
+    "hk_daily_brief",
 }
 
 

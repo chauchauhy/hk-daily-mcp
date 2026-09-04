@@ -13,6 +13,8 @@ class EnvLoadUtil:
     HOLIDAYS_URL = "https://www.1823.gov.hk/common/ical/{lang}.json"
     AQHI_RSS_URL = "https://www.aqhi.gov.hk/epd/ddata/html/out/aqhi_ind_rss_Eng.xml"
     MTR_SCHEDULE_URL = "https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line={line}&sta={sta}"
+    HKKF_BASE_URL = "https://www.hkkfeta.com"
+    SUNFERRY_ETA_URL = "https://www.sunferry.com.hk/eta/?route={route_code}"
 
     @staticmethod
     def load_env(key: str, default: str = None):

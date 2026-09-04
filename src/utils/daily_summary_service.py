@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 from utils.env_load_util import EnvLoadUtil
 from utils import kmb_util
+from utils import air_quality_service, holiday_service, kmb_service, tide_service, weather_service
 from utils.hko_util import get_global_hko_router_util
 
 logger = logging.getLogger(__name__)
@@ -189,3 +190,72 @@ async def get_daily_summary(lang: str, keyword: str, address: str, route: str) -
         "transport": transport_result,
         "news": news_result,
     }
+
+
+def get_news_summary(keyword: str) -> list:
+    """Public wrapper over the NewsAPI keyword search."""
+    return _get_news_summary(keyword)
+
+
+BRIEF_DOMAINS = ("weather", "transport", "news", "holidays", "tide", "air_quality")
+DEFAULT_BRIEF_DOMAINS = ("weather", "holidays", "tide", "air_quality")
+HOLIDAY_LANGS = {"tc": "tc", "sc": "sc"}
+
+
+def _ok_or_error(value):
+    return {"error": str(value)} if isinstance(value, Exception) else value
+
+
+async def _brief_weather(address: str, lang: str) -> dict:
+    forecast, warnings, nearby = await asyncio.gather(
+        weather_service.get_weather_forecast(lang),
+        weather_service.get_weather_warnings(lang),
+        weather_service.get_nearby_weather(address, lang),
+        return_exceptions=True,
+    )
+    return {
+        "forecast": _ok_or_error(forecast),
+        "warnings": _ok_or_error(warnings),
+        "nearby": _ok_or_error(nearby),
+    }
+
+
+async def get_daily_brief(address: str, lang: str = "tc", domains: list | None = None,
+                          keyword: str = "Hong Kong", route: str | None = None,
+                          tide_station: str = "CCH", date: str | None = None,
+                          year: int | None = None, aqhi_station: str = "all") -> dict:
+    """Broad daily briefing across selected domains (transport/news are opt-in).
+
+    Every domain failure becomes an {"error": ...} section instead of failing
+    the whole briefing.
+    """
+    selected = list(domains) if domains else list(DEFAULT_BRIEF_DOMAINS)
+    unknown = [d for d in selected if d not in BRIEF_DOMAINS]
+    if unknown:
+        return {
+            "error": f"Unknown domains: {unknown}",
+            "valid_domains": list(BRIEF_DOMAINS),
+            "address": address,
+        }
+    logger.info(f"Building daily brief for '{address}' [{lang}]: {selected}")
+
+    tasks = {}
+    if "weather" in selected:
+        tasks["weather"] = _brief_weather(address, lang)
+    if "transport" in selected:
+        tasks["transport"] = kmb_service.get_stop_eta_workflow(address, route)
+    if "news" in selected:
+        tasks["news"] = asyncio.to_thread(_get_news_summary, keyword)
+    if "holidays" in selected:
+        tasks["holidays"] = holiday_service.get_public_holidays(
+            year or datetime.now().year, HOLIDAY_LANGS.get(lang, "en"))
+    if "tide" in selected:
+        tasks["tide"] = tide_service.get_tide_predictions(tide_station, date)
+    if "air_quality" in selected:
+        tasks["air_quality"] = air_quality_service.get_air_quality(aqhi_station)
+
+    results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+    brief = {"address": address, "lang": lang, "domains": selected}
+    for key, value in zip(tasks.keys(), results):
+        brief[key] = _ok_or_error(value)
+    return brief
