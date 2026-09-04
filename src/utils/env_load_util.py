@@ -11,6 +11,7 @@ class EnvLoadUtil:
     HKO_WEATHER_URL = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType={data_type}&lang={lang}"
     HKO_TIDE_URL = "https://data.weather.gov.hk/weatherAPI/opendata/opendata.php?dataType=HLT&station={station}&year={year}&rformat=csv"
     HOLIDAYS_URL = "https://www.1823.gov.hk/common/ical/{lang}.json"
+    AQHI_RSS_URL = "https://www.aqhi.gov.hk/epd/ddata/html/out/aqhi_ind_rss_Eng.xml"
 
     @staticmethod
     def load_env(key: str, default: str = None):

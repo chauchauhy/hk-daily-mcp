@@ -15,7 +15,7 @@ import logging
 
 from mcp.server import MCPServer
 
-from utils import daily_summary_service, holiday_service, kmb_service, tide_service, weather_service
+from utils import air_quality_service, daily_summary_service, holiday_service, kmb_service, tide_service, weather_service
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +104,12 @@ async def hk_get_public_holidays(year: int, lang: str = "en") -> dict:
 async def hko_get_tide_predictions(station: str = "CCH", date: str | None = None) -> dict:
     """High/low tide times and heights for a tide station on a date (YYYY-MM-DD, default today)."""
     return await tide_service.get_tide_predictions(station, date)
+
+
+@mcp.tool()
+async def hk_get_air_quality(station: str = "all") -> dict:
+    """Current Air Quality Health Index by monitoring station ('all' or a station/district name)."""
+    return await air_quality_service.get_air_quality(station)
 
 
 # Starlette app served by the host (mounted at /mcp in main.py).

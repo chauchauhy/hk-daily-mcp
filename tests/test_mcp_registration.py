@@ -18,6 +18,7 @@ EXPECTED_TOOLS = {
     "kmb_get_route_itinerary",
     "hk_get_public_holidays",
     "hko_get_tide_predictions",
+    "hk_get_air_quality",
 }
 
 
