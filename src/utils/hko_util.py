@@ -80,15 +80,17 @@ class HKORouterUtil:
             logger.error(f"Geocoding error for '{place_name}': {str(e)}")
             return None
 
-    async def find_nearby_weather_stations(self, address: str, lang: str = "tc", top_n: int = 5) -> dict:
+    async def find_nearby_weather_stations(self, address: str, lang: str = "tc", top_n: int = 5, user_coords=None) -> dict:
         """
         Find the nearest weather stations to a given address.
-        
+
         Args:
             address: User input address
             lang: Language for API request (default: "tc")
             top_n: Number of nearest stations to return (default: 5)
-            
+            user_coords: Optional pre-computed (lat, lon) tuple for the address.
+                When provided, the address is not geocoded again.
+
         Returns:
             Dictionary containing the nearby weather stations and their data
         """

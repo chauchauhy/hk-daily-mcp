@@ -1,0 +1,38 @@
+[project]
+name = "daily-data-assistant"
+version = "0.1.0"
+description = "Hong Kong daily data assistant: KMB transport, HKO weather, news and more over FastAPI + MCP"
+readme = "README.md"
+authors = [
+    { email = "chauchayhy@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi==0.135.1",
+    "geopy==2.4.1",
+    "haversine==2.9.0",
+    "httpx==0.28.1",
+    "mcp>=2,<3",
+    "numpy==2.4.2",
+    "pydantic==2.12.5",
+    "python-dotenv==1.2.2",
+    "requests==2.32.5",
+    "scipy==1.17.1",
+    "uvicorn==0.41.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
+
+# App repo, not a distributable package: manage deps only, don't build/install it.
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "network: tests that hit live third-party APIs",
+]

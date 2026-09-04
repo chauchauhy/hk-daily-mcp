@@ -1,8 +1,10 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 import uvicorn
 
+from mcp_server import mcp, mcp_http_app
 from routes import app_router
 from utils.env_load_util import EnvLoadUtil
 
@@ -15,9 +17,18 @@ logging.basicConfig(
     ],
 )
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Mounting disables the MCP app's built-in lifespan, so the host app
+    # must run the session manager itself.
+    async with mcp.session_manager.run():
+        yield
+
+app = FastAPI(lifespan=lifespan)
 app.include_router(app_router, prefix="/router", tags=["kmb_router"])
+# MCP endpoint is exactly /mcp (mount prefix + streamable_http_path="/").
+app.mount("/mcp", mcp_http_app)
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host=EnvLoadUtil.load_env("APPLICATION_SERVER_HOST", "127.0.0.1"), 
+    uvicorn.run("main:app", host=EnvLoadUtil.load_env("APPLICATION_SERVER_HOST", "127.0.0.1"),
                 port=int(EnvLoadUtil.load_env("APPLICATION_SERVER_PORT", 8000)), reload=True)
