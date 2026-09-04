@@ -16,6 +16,8 @@ EXPECTED_TOOLS = {
     "hko_get_weather_warnings",
     "hko_get_special_weather_tips",
     "kmb_get_route_itinerary",
+    "hk_get_public_holidays",
+    "hko_get_tide_predictions",
 }
 
 

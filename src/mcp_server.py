@@ -15,7 +15,7 @@ import logging
 
 from mcp.server import MCPServer
 
-from utils import daily_summary_service, kmb_service, weather_service
+from utils import daily_summary_service, holiday_service, kmb_service, tide_service, weather_service
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +92,18 @@ async def hko_get_weather_warnings(lang: str = "tc") -> dict:
 async def hko_get_special_weather_tips(lang: str = "tc") -> dict:
     """Fetch HKO special weather tips."""
     return await weather_service.get_special_weather_tips(lang)
+
+
+@mcp.tool()
+async def hk_get_public_holidays(year: int, lang: str = "en") -> dict:
+    """List Hong Kong public holidays for a year."""
+    return await holiday_service.get_public_holidays(year, lang)
+
+
+@mcp.tool()
+async def hko_get_tide_predictions(station: str = "CCH", date: str | None = None) -> dict:
+    """High/low tide times and heights for a tide station on a date (YYYY-MM-DD, default today)."""
+    return await tide_service.get_tide_predictions(station, date)
 
 
 # Starlette app served by the host (mounted at /mcp in main.py).

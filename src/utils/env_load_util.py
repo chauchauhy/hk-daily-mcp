@@ -9,6 +9,8 @@ class EnvLoadUtil:
     KMB_ETA_ROUTE_URL = "https://data.etabus.gov.hk/v1/transport/kmb/route-stop/{route}/{direction}/{service_type}"
     KMB_ROUTE_ETA_URL = "https://data.etabus.gov.hk/v1/transport/kmb/route-eta/{route}/{service_type}"
     HKO_WEATHER_URL = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType={data_type}&lang={lang}"
+    HKO_TIDE_URL = "https://data.weather.gov.hk/weatherAPI/opendata/opendata.php?dataType=HLT&station={station}&year={year}&rformat=csv"
+    HOLIDAYS_URL = "https://www.1823.gov.hk/common/ical/{lang}.json"
 
     @staticmethod
     def load_env(key: str, default: str = None):
