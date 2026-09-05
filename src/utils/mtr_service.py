@@ -30,8 +30,7 @@ def _load_lines_stations() -> list:
     global _LINES_CACHE
     if _LINES_CACHE is None:
         _LINES_CACHE = []
-        file_path = os.path.normpath(os.path.join(
-            EnvLoadUtil.load_env("BASE_FOLDER"), "res", "mtr_lines_and_stations.csv"))
+        file_path = EnvLoadUtil.res_path("mtr_lines_and_stations.csv")
         try:
             with open(file_path, "r", encoding="utf-8-sig") as f:
                 for row in csv.DictReader(f):

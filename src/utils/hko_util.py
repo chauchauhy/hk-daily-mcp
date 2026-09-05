@@ -74,8 +74,7 @@ class HKORouterUtil:
         """
         if self._station_coords is None:
             self._station_coords = {}
-            file_path = os.path.normpath(os.path.join(
-                EnvLoadUtil.load_env("BASE_FOLDER"), "res", "hko_station_coords.json"))
+            file_path = EnvLoadUtil.res_path("hko_station_coords.json")
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
                     self._station_coords = json.load(f)
@@ -179,11 +178,11 @@ class HKORouterUtil:
 
         logger.info(f"Successfully resolved {len(stations_with_coords)} stations")
 
-        # Step 4: Haversine
+        # Step 4: Haversine (kilometers — matches the distance_km keys)
         logger.info("Calculating distances to all weather stations...")
         for station in stations_with_coords:
             station_coords = (station["lat"], station["lon"])
-            distance = haversine(user_coords, station_coords, unit=Unit.METERS)
+            distance = haversine(user_coords, station_coords, unit=Unit.KILOMETERS)
             station["distance_km"] = round(distance, 2)
 
         # Step 5: Sort by distance and get top N nearest stations
@@ -198,7 +197,7 @@ class HKORouterUtil:
             coords = await self._resolve_coords(humidity_data.place)
             if not coords:
                 continue
-            distance = round(haversine(user_coords, coords, unit=Unit.METERS), 2)
+            distance = round(haversine(user_coords, coords, unit=Unit.KILOMETERS), 2)
             entry = {
                 "place": humidity_data.place,
                 "value": humidity_data.value,
@@ -216,7 +215,7 @@ class HKORouterUtil:
             coords = await self._resolve_coords(rainfall_data.place)
             if not coords:
                 continue
-            distance = round(haversine(user_coords, coords, unit=Unit.METERS), 2)
+            distance = round(haversine(user_coords, coords, unit=Unit.KILOMETERS), 2)
             entry = {
                 "place": rainfall_data.place,
                 "max": rainfall_data.max,

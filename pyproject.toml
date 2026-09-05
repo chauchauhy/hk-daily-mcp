@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Hong Kong daily data assistant: KMB transport, HKO weather, news and more over FastAPI + MCP"
 readme = "README.md"
 authors = [
-    { email = "chauchayhy@gmail.com" }
+    { name = "daily-data-assistant contributors" }
 ]
 requires-python = ">=3.14"
 dependencies = [

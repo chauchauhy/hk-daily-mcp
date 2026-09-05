@@ -8,7 +8,7 @@ and keyword news — exposed as both a FastAPI REST API and an MCP server.
 
 - REST: `http://127.0.0.1:8000/router/...` (existing endpoints, unchanged)
 - MCP over Streamable HTTP: `http://127.0.0.1:8000/mcp` (mounted on the same app)
-- MCP over stdio: `python mcp_server.py` (run from `src/`)
+- MCP over stdio: `uv run python mcp_server.py` (run from `src/`)
 
 ## Setup
 
@@ -39,6 +39,36 @@ uv run uvicorn main:app --host 127.0.0.1 --port 8000
 cd src
 uv run python mcp_server.py
 ```
+
+## Connect from an MCP host
+
+The server works with any MCP-compatible host (Claude Desktop, OpenClaw,
+Hermes Agent, other MCP clients) over stdio or Streamable HTTP.
+
+**stdio** — add to the host's MCP config (e.g. `claude_desktop_config.json`
+or the equivalent), pointing `cwd` at this repo's `src/` directory:
+
+```json
+{
+  "mcpServers": {
+    "daily-data-assistant": {
+      "command": "uv",
+      "args": ["run", "python", "mcp_server.py"],
+      "cwd": "/absolute/path/to/daily_data_assistant/src"
+    }
+  }
+}
+```
+
+**Streamable HTTP** — start the REST + MCP server once (see Run above) and
+point the host at `http://127.0.0.1:8000/mcp`.
+
+Notes:
+
+- Bundled `res/` data resolves from the package location, so a missing
+  `BASE_FOLDER` or a foreign working directory does not break the tools.
+- `NEWS_API_KEY` is only needed for the news domains; every other tool works
+  without any keys.
 
 **Tests** (from the repo root):
 

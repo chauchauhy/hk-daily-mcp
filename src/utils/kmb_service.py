@@ -126,6 +126,10 @@ BOUND_ALIASES = {
     "outbound": "outbound", "out": "outbound", "o": "outbound",
 }
 
+# route-eta entries carry a dir flag; both directions share seq numbers, so
+# ETAs must be filtered by direction or opposite-bound buses leak in.
+BOUND_DIR = {"outbound": "O", "inbound": "I"}
+
 
 async def get_route_itinerary(route: str, bound: str = "outbound", service_type: int = 1) -> dict:
     """Route itinerary: ordered stops of a route bound, each with live ETAs.
@@ -159,8 +163,11 @@ async def get_route_itinerary(route: str, bound: str = "outbound", service_type:
         stop_by_id = {stop.stop: stop for stop in stop_list.data} if stop_list else {}
 
         route_etas = await kmb_util.KMBRouterUtil.fetch_kmb_route_eta(route, service_type) or {}
+        dir_filter = BOUND_DIR[normalized]
         etas_by_seq: dict[int, list] = {}
         for entry in route_etas.get("data", []):
+            if entry.get("dir") != dir_filter:
+                continue
             try:
                 seq_key = int(entry.get("seq", 0))
             except (TypeError, ValueError):

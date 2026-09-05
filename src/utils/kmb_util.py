@@ -55,7 +55,7 @@ class KMBRouterUtil:
     @staticmethod
     async def load_kmb_router_data_from_file() -> KMBRouterResponse:
         try:
-            file_path = os.path.normpath(os.path.join(EnvLoadUtil.load_env("BASE_FOLDER"), "res", EnvLoadUtil.load_env("KMB_ROUTE_DATA")))
+            file_path = EnvLoadUtil.res_path(EnvLoadUtil.load_env("KMB_ROUTE_DATA", "route_data.json"))
             with open(file_path, "r", encoding="utf-8") as f:
                 router_data = KMBRouterResponse(**json.load(f))
                 logger.info(f"Successfully loaded KMB router data from file. Total routes: {len(router_data.data)}")
@@ -124,7 +124,7 @@ class KMBRouterUtil:
     @staticmethod
     async def load_stop_data_from_file() -> StopListResponse:
         try:
-            file_path = os.path.normpath(os.path.join(EnvLoadUtil.load_env("BASE_FOLDER"), "res", EnvLoadUtil.load_env("KMB_STOP_DATA")))
+            file_path = EnvLoadUtil.res_path(EnvLoadUtil.load_env("KMB_STOP_DATA", "stop_data.json"))
             with open(file_path, "r", encoding="utf-8") as f:
                 stop_list = StopListResponse(**json.load(f))
                 logger.info(f"Successfully loaded KMB stop data from file. Total stops: {len(stop_list.data)}")

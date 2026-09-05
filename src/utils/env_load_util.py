@@ -20,6 +20,20 @@ class EnvLoadUtil:
     def load_env(key: str, default: str = None):
         dotenv.load_dotenv()
         return os.getenv(key, "") if default is None else os.getenv(key, default)
+
+    @staticmethod
+    def res_path(filename: str) -> str:
+        """Resolve a file in res/ — independent of the process working directory.
+
+        Uses BASE_FOLDER when set; otherwise derives the repo root from this
+        file's location (src/utils/ -> repo root), so the MCP server and the
+        REST app work no matter which directory a host launches them from.
+        """
+        base_folder = EnvLoadUtil.load_env("BASE_FOLDER")
+        if not base_folder:
+            base_folder = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), os.pardir, os.pardir))
+        return os.path.normpath(os.path.join(base_folder, "res", filename))
         
     @staticmethod
     def get_env_config_dict() -> dict:

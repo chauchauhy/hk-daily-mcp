@@ -88,7 +88,7 @@ async def _weather_task(address: str, lang: str, user_coords: tuple | None) -> d
                         "place": s["place"],
                         "temperature": s["value"],
                         "unit": s["unit"],
-                        "distance_m": s["distance_km"],
+                        "distance_m": round(s["distance_km"] * 1000, 1),
                     }
                     for s in weather_data.get("nearby_stations", [])
                 ],
