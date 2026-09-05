@@ -75,9 +75,9 @@ async def hko_get_nearby_weather(address: str, lang: str = "tc", top_n: int = 1)
 
 
 @mcp.tool()
-async def daily_summary(lang: str, keyword: str, address: str, route: str) -> dict:
-    """Build a daily summary: nearby weather, KMB transport ETAs and keyword news."""
-    return await daily_summary_service.get_daily_summary(lang, keyword, address, route)
+async def daily_summary(lang: str, address: str, route: str) -> dict:
+    """Build a daily summary: nearby weather and KMB transport ETAs."""
+    return await daily_summary_service.get_daily_summary(lang, address, route)
 
 
 @mcp.tool()
@@ -130,12 +130,12 @@ async def ferry_get_schedule(operator: str, route: str, direction: str | None = 
 
 @mcp.tool()
 async def hk_daily_brief(address: str, lang: str = "tc", domains: list[str] | None = None,
-                         keyword: str = "Hong Kong", route: str | None = None,
+                         route: str | None = None,
                          tide_station: str = "CCH", date: str | None = None,
                          year: int | None = None, aqhi_station: str = "all") -> dict:
-    """Broad daily briefing. Default domains: weather, holidays, tide, air_quality; transport/news are opt-in."""
+    """Broad daily briefing. Default domains: weather, holidays, tide, air_quality; transport is opt-in."""
     return await daily_summary_service.get_daily_brief(
-        address, lang, domains, keyword, route, tide_station, date, year, aqhi_station)
+        address, lang, domains, route, tide_station, date, year, aqhi_station)
 
 
 # Starlette app served by the host (mounted at /mcp in main.py).

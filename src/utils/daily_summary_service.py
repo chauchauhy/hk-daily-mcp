@@ -1,9 +1,7 @@
 # pylint: disable=W0613,W1203,E1136,W0718
 """Shared daily-summary workflow used by both the FastAPI router and the MCP tools."""
-import re
 import asyncio
 import logging
-import requests
 from datetime import datetime, timezone
 
 from utils.env_load_util import EnvLoadUtil
@@ -12,12 +10,6 @@ from utils import air_quality_service, holiday_service, kmb_service, tide_servic
 from utils.hko_util import get_global_hko_router_util
 
 logger = logging.getLogger(__name__)
-
-
-def _clean_text(text: str) -> str:
-    if not text:
-        return ""
-    return re.sub(r'[^\w\s]', ' ', text).strip()
 
 
 def _calc_remaining_minutes(eta_str: str) -> int | None:
@@ -32,55 +24,6 @@ def _calc_remaining_minutes(eta_str: str) -> int | None:
         return max(0, remaining)
     except Exception:
         return None
-
-
-def _get_news_summary(keyword: str) -> list:
-    newsapi_key = EnvLoadUtil.load_env("NEWS_API_KEY")
-    if not newsapi_key:
-        logger.error("NEWS_API_KEY is not set or empty in .env")
-        return []
-
-    try:
-        response = requests.get(
-            "https://newsapi.org/v2/everything",
-            params={
-                "q": keyword,
-                "sortBy": "publishedAt",
-                "language": "en",
-                "apiKey": newsapi_key,
-            },
-            timeout=10,
-        )
-        if response.status_code != 200:
-            logger.error(f"NewsAPI returned HTTP {response.status_code}")
-            return []
-        news_data = response.json()
-        if news_data.get("status") != "ok":
-            logger.error(f"NewsAPI error: {news_data.get('message')}")
-            return []
-
-        logger.info(f"Raw response status: {news_data.get('status')}")
-        logger.info(f"Total results: {news_data.get('totalResults')}")
-        logger.info(f"Articles count: {len(news_data.get('articles', []))}")
-
-        result = []
-        for article in news_data.get('articles', [])[:10]:
-            description = article.get('description') or ""
-            logger.info(f"Article desc length: {len(description)} | title: {article.get('title','')[:40]}")
-            if len(description) > 30:
-                result.append({
-                    "source": _clean_text(article['source']['name']),
-                    "title": _clean_text(article['title']),
-                    "description": _clean_text(description),
-                    "publishedAt": article['publishedAt'],
-                })
-
-        logger.info(f"Returning {len(result)} news articles")
-        return result
-
-    except Exception as e:
-        logger.error(f"Error fetching news summary: {str(e)}")
-        return []
 
 
 async def _weather_task(address: str, lang: str, user_coords: tuple | None) -> dict:
@@ -162,8 +105,8 @@ async def _transport_task(lat: float, lon: float, route_filter: str) -> dict:
         return {"error": str(e)}
 
 
-async def get_daily_summary(lang: str, keyword: str, address: str, route: str) -> dict:
-    logger.info(f"Building daily summary for language: {lang}, address: {address}, route: {route}, keyword: {keyword}...")
+async def get_daily_summary(lang: str, address: str, route: str) -> dict:
+    logger.info(f"Building daily summary for language: {lang}, address: {address}, route: {route}...")
 
     # Geocode once — shared by weather and transport; failures yield empty sections, not 500
     try:
@@ -179,10 +122,9 @@ async def get_daily_summary(lang: str, keyword: str, address: str, route: str) -
         lat, lon = lat_lon["latitude"], lat_lon["longitude"]
         user_coords = (lat, lon)
 
-    weather_result, transport_result, news_result = await asyncio.gather(
+    weather_result, transport_result = await asyncio.gather(
         _weather_task(address, lang, user_coords),
         _transport_task(lat, lon, route) if user_coords else asyncio.sleep(0, result={"error": "Geocoding failed"}),
-        asyncio.to_thread(_get_news_summary, keyword),
         return_exceptions=True,
     )
 
@@ -190,21 +132,17 @@ async def get_daily_summary(lang: str, keyword: str, address: str, route: str) -
         weather_result = {"error": str(weather_result)}
     if isinstance(transport_result, Exception):
         transport_result = {"error": str(transport_result)}
-    if isinstance(news_result, Exception):
-        logger.error(f"News task raised an exception: {str(news_result)}")
-        news_result = []
 
     return {
         "address": address,
         "lang": lang,
         "weather": weather_result,
         "transport": transport_result,
-        "news": news_result,
     }
 
 
 
-BRIEF_DOMAINS = ("weather", "transport", "news", "holidays", "tide", "air_quality")
+BRIEF_DOMAINS = ("weather", "transport", "holidays", "tide", "air_quality")
 DEFAULT_BRIEF_DOMAINS = ("weather", "holidays", "tide", "air_quality")
 HOLIDAY_LANGS = {"tc": "tc", "sc": "sc"}
 
@@ -228,10 +166,10 @@ async def _brief_weather(address: str, lang: str) -> dict:
 
 
 async def get_daily_brief(address: str, lang: str = "tc", domains: list | None = None,
-                          keyword: str = "Hong Kong", route: str | None = None,
+                          route: str | None = None,
                           tide_station: str = "CCH", date: str | None = None,
                           year: int | None = None, aqhi_station: str = "all") -> dict:
-    """Broad daily briefing across selected domains (transport/news are opt-in).
+    """Broad daily briefing across selected domains (transport is opt-in).
 
     Every domain failure becomes an {"error": ...} section instead of failing
     the whole briefing.
@@ -251,8 +189,6 @@ async def get_daily_brief(address: str, lang: str = "tc", domains: list | None =
         tasks["weather"] = _brief_weather(address, lang)
     if "transport" in selected:
         tasks["transport"] = kmb_service.get_stop_eta_workflow(address, route)
-    if "news" in selected:
-        tasks["news"] = asyncio.to_thread(_get_news_summary, keyword)
     if "holidays" in selected:
         tasks["holidays"] = holiday_service.get_public_holidays(
             year or datetime.now().year, HOLIDAY_LANGS.get(lang, "en"))

@@ -15,7 +15,7 @@ import utils.mtr_service as mtr_service
 import utils.tide_service as tide_service
 import utils.httpx_util as httpx_util
 import utils.hko_util as hko_util
-from utils.daily_summary_service import _calc_remaining_minutes, _clean_text
+from utils.daily_summary_service import _calc_remaining_minutes
 
 from helpers import FakeResponse
 
@@ -231,11 +231,6 @@ def test_mtr_station_resolution():
 
 
 # ---------- daily summary helpers ----------
-
-def test_clean_text():
-    assert _clean_text("Hello, world!") == "Hello  world"  # comma leaves a double space
-    assert _clean_text(None) == ""
-    assert _clean_text("a&b/c") == "a b c"
 
 
 def test_calc_remaining_minutes():

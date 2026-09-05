@@ -4,10 +4,9 @@
 ![Python](https://img.shields.io/badge/python-3.14-blue.svg)
 
 **Hong Kong daily information as MCP tools** — KMB bus ETAs, HKO weather,
-MTR next trains, ferry schedules, tides, public holidays, air quality (AQHI)
-and keyword news. Exposed both as an MCP server (17 tools over stdio or
-Streamable HTTP) and a FastAPI REST API — no API keys required except
-optionally for news.
+MTR next trains, ferry schedules, tides, public holidays, air quality (AQHI).
+Exposed both as an MCP server (17 tools over stdio or Streamable HTTP) and
+a FastAPI REST API — fully keyless, no API keys required.
 
 ## Features
 
@@ -15,8 +14,7 @@ optionally for news.
   briefs (see [MCP tools](#mcp-tools-17)).
 - **Two transports**: MCP over stdio (for Claude Desktop / local hosts) and
   MCP over Streamable HTTP mounted on the same FastAPI app.
-- **Keyless by default** — every feed is public open data; only the news
-  domain needs an optional `NEWS_API_KEY`.
+- **Fully keyless** — every feed is public open data; no API keys required.
 - **Offline fallback** — bundled `res/` snapshots (KMB routes/stops, HKO
   station coords, MTR line/station table) keep tools working when a live API
   is down.
@@ -34,7 +32,7 @@ git clone https://github.com/chauchauhy/hk-daily-mcp.git
 cd hk-daily-mcp
 
 uv sync                       # installs deps + dev tools (pytest, ruff)
-cp .env.sample .env           # optional; only NEWS_API_KEY is a secret
+cp .env.sample .env   # optional; no API keys required
 ```
 
 **Run REST + MCP over HTTP** (single process, port 8000):
@@ -104,8 +102,8 @@ protection, so requests from Host/Origin values other than `127.0.0.1`,
 | `hko_get_tide_predictions` | High/low tide times and heights for a station/date |
 | `hk_get_air_quality` | AQHI by monitoring station ('all' or a station/district) |
 | `hk_get_public_holidays` | Hong Kong public holidays for a year |
-| `daily_summary` | Legacy summary (weather + KMB ETAs + keyword news); frozen shape |
-| `hk_daily_brief` | Broad briefing: weather, holidays, tide, AQHI by default; transport/news opt-in |
+| `daily_summary` | Legacy summary (weather + KMB ETAs); frozen shape |
+| `hk_daily_brief` | Broad briefing: weather, holidays, tide, AQHI by default; transport opt-in |
 
 ## REST API
 
@@ -115,8 +113,7 @@ The same workflows are available as REST endpoints under `/router/...`
 
 ## Data sources & licenses
 
-The service reads from public Hong Kong data feeds (no API keys required
-except NewsAPI):
+The service reads from public Hong Kong data feeds (no API keys required):
 
 - KMB bus routes / stops / ETAs — `data.etabus.gov.hk` (open data)
 - MTR next-train schedules — `rt.data.gov.hk`
@@ -124,7 +121,6 @@ except NewsAPI):
 - Air Quality Health Index (AQHI) — `aqhi.gov.hk` (EPD)
 - Public holidays — `www.1823.gov.hk`
 - Ferries — `hkkfeta.com`, `sunferry.com.hk`, `starferry.com.hk`
-- News — NewsAPI (`NEWS_API_KEY`, optional)
 
 The bundled offline snapshots under `res/` (KMB routes/stops, HKO station
 coordinates, MTR line/station table) are derived from those same open feeds
