@@ -35,12 +35,3 @@ class EnvLoadUtil:
                 os.path.join(os.path.dirname(__file__), os.pardir, os.pardir))
         return os.path.normpath(os.path.join(base_folder, "res", filename))
         
-    @staticmethod
-    def get_env_config_dict() -> dict:
-        dotenv.load_dotenv()
-        config = {}
-        for key, value in os.environ.items():
-            config[key] = value
-
-        return config
-    

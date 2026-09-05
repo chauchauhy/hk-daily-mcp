@@ -1,3 +1,4 @@
+
 import json
 
 import pytest
@@ -5,6 +6,8 @@ import pytest
 from mcp import Client
 
 from mcp_server import mcp
+
+from helpers import call_mcp as _call
 
 NEW_TOOLS = {
     "hko_get_9day_forecast",
@@ -29,13 +32,6 @@ def test_station_coords_bundle_loads():
     assert 22.0 < lat < 22.6 and 113.8 < lon < 114.5
 
 
-async def _call(tool: str, args: dict):
-    # Dict-returning tools arrive as JSON text content (no structured_content
-    # for bare-dict returns), so parse what a real client would see.
-    async with Client(mcp) as client:
-        result = await client.call_tool(tool, args)
-    assert not result.is_error
-    return json.loads(result.content[0].text)
 
 
 @pytest.mark.anyio

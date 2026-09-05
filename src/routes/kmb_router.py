@@ -15,9 +15,10 @@ async def get_kmb_router():
 
 @router.get("/route/{route_id}")
 async def get_kmb_router_by_route_id(route_id: str):
+    """Return the KMB lanes serving a route number (e.g. 1, 1A, N368)."""
     logger.info(f"Fetching KMB router data for route_id: {route_id}...")
     try:
-        return await kmb_service.fetch_all_kmb_routes()
+        return await kmb_service.fetch_kmb_route(route_id)
     except Exception as e:
         return {"error": str(e)}
 

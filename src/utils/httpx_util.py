@@ -11,21 +11,19 @@ class HttpxUtil:
         self.timeout = timeout
         self.client = httpx.AsyncClient(timeout=self.timeout)
 
-    async def post(self, url: str, data: dict = None, headers: dict = None) -> httpx.Response:
-        response = await self.client.post(url, json=data, headers=headers)
-        return response
-    
     async def get_all(self, url: str, follow_redirects: bool = False) -> httpx.Response:
         response = await self._get(url, params=None, headers=None, follow_redirects=follow_redirects)
         return response
 
     async def _get(self, url: str, params: dict = None, headers: dict = None, follow_redirects: bool = False) -> httpx.Response:
-        response: httpx.Response = None
-        if params is None or headers is None:
-            response = await self.client.get(url, follow_redirects=follow_redirects)
-        else:
-            response = await self.client.get(url, params=params, headers=headers, follow_redirects=follow_redirects)
-        return response
+        # Build kwargs independently so params/headers are honoured even when
+        # only one of them is provided.
+        kwargs = {"follow_redirects": follow_redirects}
+        if params is not None:
+            kwargs["params"] = params
+        if headers is not None:
+            kwargs["headers"] = headers
+        return await self.client.get(url, **kwargs)
     
     async def close(self):
         await self.client.aclose()

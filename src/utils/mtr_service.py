@@ -2,8 +2,6 @@
 """MTR next-train info (rt.data.gov.hk feed), no API key needed."""
 import csv
 import logging
-import os
-
 from utils.env_load_util import EnvLoadUtil
 from utils.httpx_util import get_global_httpx_util
 

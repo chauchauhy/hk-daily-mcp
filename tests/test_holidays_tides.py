@@ -1,10 +1,11 @@
-import json
 
 import pytest
 
 from mcp import Client
 
 from mcp_server import mcp
+
+from helpers import call_mcp as _call
 
 
 @pytest.mark.anyio
@@ -15,11 +16,6 @@ async def test_holiday_tide_tools_registered():
     assert {"hk_get_public_holidays", "hko_get_tide_predictions"} <= names
 
 
-async def _call(tool: str, args: dict):
-    async with Client(mcp) as client:
-        result = await client.call_tool(tool, args)
-    assert not result.is_error
-    return json.loads(result.content[0].text)
 
 
 @pytest.mark.anyio

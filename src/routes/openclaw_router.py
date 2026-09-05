@@ -14,7 +14,7 @@ async def get_hko_router():
     return {"message": "This is the openclaw_router endpoint"}
 
 
-@router.get("/dailySummary/{lang}/{keyword}/{address}/{router}")
-async def get_daily_summary(lang: str, keyword: str, address: str, router: str):
-    logger.info(f"Fetching daily summary for language: {lang}, address: {address}, router: {router}, keyword: {keyword}...")
-    return await daily_summary_service.get_daily_summary(lang, keyword, address, router)
+@router.get("/dailySummary/{lang}/{keyword}/{address}/{route}")
+async def get_daily_summary(lang: str, keyword: str, address: str, route: str):
+    logger.info(f"Fetching daily summary for language: {lang}, address: {address}, route: {route}, keyword: {keyword}...")
+    return await daily_summary_service.get_daily_summary(lang, keyword, address, route)

@@ -40,15 +40,24 @@ def _get_news_summary(keyword: str) -> list:
         logger.error("NEWS_API_KEY is not set or empty in .env")
         return []
 
-    url = ('https://newsapi.org/v2/everything?'
-           'q={keyword}&'
-           'sortBy=publishedAt&'
-           'language=en&'
-           'apiKey={newsapi_key}').format(keyword=keyword, newsapi_key=newsapi_key)
-
     try:
-        response = requests.get(url)
+        response = requests.get(
+            "https://newsapi.org/v2/everything",
+            params={
+                "q": keyword,
+                "sortBy": "publishedAt",
+                "language": "en",
+                "apiKey": newsapi_key,
+            },
+            timeout=10,
+        )
+        if response.status_code != 200:
+            logger.error(f"NewsAPI returned HTTP {response.status_code}")
+            return []
         news_data = response.json()
+        if news_data.get("status") != "ok":
+            logger.error(f"NewsAPI error: {news_data.get('message')}")
+            return []
 
         logger.info(f"Raw response status: {news_data.get('status')}")
         logger.info(f"Total results: {news_data.get('totalResults')}")
@@ -80,20 +89,22 @@ async def _weather_task(address: str, lang: str, user_coords: tuple | None) -> d
         weather_data = await hko_router_util.find_nearby_weather_stations(
             address, lang=lang, user_coords=user_coords
         )
-        if weather_data is None or "error" not in weather_data:
-            return {
-                "record_time": weather_data.get("record_time"),
-                "nearby_stations": [
-                    {
-                        "place": s["place"],
-                        "temperature": s["value"],
-                        "unit": s["unit"],
-                        "distance_m": round(s["distance_km"] * 1000, 1),
-                    }
-                    for s in weather_data.get("nearby_stations", [])
-                ],
-            }
-        return weather_data
+        if weather_data is None:
+            return {"error": "Weather data unavailable"}
+        if "error" in weather_data:
+            return weather_data
+        return {
+            "record_time": weather_data.get("record_time"),
+            "nearby_stations": [
+                {
+                    "place": s["place"],
+                    "temperature": s["value"],
+                    "unit": s["unit"],
+                    "distance_m": round(s["distance_km"] * 1000, 1),
+                }
+                for s in weather_data.get("nearby_stations", [])
+            ],
+        }
     except Exception as e:
         logger.error(f"Weather fetch failed: {str(e)}")
         return {"error": str(e)}
@@ -191,10 +202,6 @@ async def get_daily_summary(lang: str, keyword: str, address: str, route: str) -
         "news": news_result,
     }
 
-
-def get_news_summary(keyword: str) -> list:
-    """Public wrapper over the NewsAPI keyword search."""
-    return _get_news_summary(keyword)
 
 
 BRIEF_DOMAINS = ("weather", "transport", "news", "holidays", "tide", "air_quality")

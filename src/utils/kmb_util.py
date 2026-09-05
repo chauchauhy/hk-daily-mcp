@@ -1,5 +1,4 @@
 # pylint: disable=W0603,E0402,W1203
-import os 
 import logging 
 import json 
 import ssl

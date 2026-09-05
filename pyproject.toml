@@ -25,6 +25,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=8",
+    "anyio>=4,<5",
 ]
 
 # App repo, not a distributable package: manage deps only, don't build/install it.

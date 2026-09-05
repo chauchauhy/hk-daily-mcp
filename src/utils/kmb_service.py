@@ -51,6 +51,27 @@ async def fetch_all_kmb_routes():
         return {"error": str(e)}
 
 
+async def fetch_kmb_route(route_id: str) -> dict:
+    """Fetch the KMB lanes serving a single route number (both bounds/service types)."""
+    logger.info(f"Fetching KMB router data for route: {route_id}...")
+    try:
+        data = await kmb_util.KMBRouterUtil.fetch_all_kmb_router()
+        if data is None:
+            return {"error": "Failed to fetch KMB routes", "route": route_id}
+        key = str(route_id).strip().upper()
+        lanes = [lane for lane in data.data if lane.route.upper() == key]
+        if not lanes:
+            return {"error": f"Route not found: {route_id}", "route": route_id, "count": 0}
+        return {
+            "route": route_id,
+            "count": len(lanes),
+            "lanes": [lane.model_dump(mode="json") for lane in lanes],
+        }
+    except Exception as e:
+        logger.error(f"Error in fetch_kmb_route: {str(e)}")
+        return {"error": str(e), "route": route_id}
+
+
 async def find_nearby_stops(lat: str, lon: str) -> dict:
     logger.info(f"Finding KMB stops near lat: {lat}, lon: {lon}...")
     try:
