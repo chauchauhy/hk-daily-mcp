@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from typing import Optional
 
 # {
 #     "generalSituation": "東北季候風正影響廣東。此外，一道雲帶覆蓋沿岸地區及南海北部。",

@@ -30,7 +30,6 @@ MANIFEST
 venv/
 env/
 ENV/
-.python-version
 
 # Installer logs
 pip-log.txt
@@ -61,7 +60,6 @@ sampleData/
 .ipynb_checkpoints/
 
 # pyenv
-.python-version
 
 # Environments
 .env

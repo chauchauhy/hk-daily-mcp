@@ -125,7 +125,7 @@ async def test_aqhi_exact_and_partial_match(fake_http):
     exact = await aq_service.get_air_quality("Mong Kok")
     assert exact["count"] == 1 and exact["stations"][0]["station"] == "Mong Kok"
     partial = await aq_service.get_air_quality("Cent")
-    assert "error" in partial and partial["error"] == f"Ambiguous station: Cent"
+    assert "error" in partial and partial["error"] == "Ambiguous station: Cent"
 
 
 @pytest.mark.anyio

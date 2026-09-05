@@ -1,5 +1,8 @@
 # daily-data-assistant
 
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python](https://img.shields.io/badge/python-3.14-blue.svg)
+
 Hong Kong daily-information assistant: KMB bus ETAs, HKO weather,
 MTR next-trains, ferry schedules, tides, public holidays, air quality
 and keyword news — exposed as both a FastAPI REST API and an MCP server.
@@ -83,6 +86,39 @@ Notes:
 uv run pytest
 uv run pytest -m "not network"   # skip live-API smoke tests
 ```
+
+## Data sources & licenses
+
+The service reads from public Hong Kong data feeds (no API keys required
+except NewsAPI):
+
+- KMB bus routes / stops / ETAs — `data.etabus.gov.hk` (open data)
+- MTR next-train schedules — `rt.data.gov.hk`
+- HKO weather, tides — `data.weather.gov.hk`
+- Air Quality Health Index (AQHI) — `aqhi.gov.hk` (EPD)
+- Public holidays — `www.1823.gov.hk`
+- Ferries — `hkkfeta.com`, `sunferry.com.hk`, `starferry.com.hk`
+- News — NewsAPI (`NEWS_API_KEY`, optional)
+
+The bundled offline snapshots under `res/` (KMB routes/stops, HKO station
+coordinates, MTR line/station table) are derived from those same open feeds
+and are used as a fallback when a live API is unavailable.
+
+## Contributing
+
+Issues and pull requests are welcome. To get started:
+
+- Requires `uv` and Python >= 3.14 (`.python-version` pins 3.14 for uv).
+- `uv sync` installs deps + dev tools (pytest, ruff).
+- Run the offline suite: `uv run pytest -m "not network"` (no network, no keys).
+- Run the live smoke tests (optional, hits real APIs): `uv run pytest -m network`.
+- Keep it green: `uv run ruff check src tests` before pushing; CI runs the
+  offline suite + ruff on every push/PR.
+
+**Adding a new MCP tool:** add a shared workflow function in
+`src/utils/*_service.py`, expose it with `@mcp.tool()` in `src/mcp_server.py`,
+then add a registration test (`tests/test_*_registration`) and a
+`@pytest.mark.network` smoke test — mirror the existing tools.
 
 ## MCP tools (17)
 

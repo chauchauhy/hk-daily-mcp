@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies (locked)
+        run: uv sync --frozen
+
+      - name: Lint (ruff)
+        run: uv run ruff check src tests
+
+      - name: Offline tests
+        run: uv run pytest -m "not network" -q
+
+  # Live-API smoke tests are runnable locally with `uv run pytest -m network`;
+  # they are intentionally not part of CI (live feeds, no keys, flaky).
