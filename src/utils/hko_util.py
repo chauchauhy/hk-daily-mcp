@@ -23,7 +23,7 @@ class HKORouterUtil:
         # certifi CA bundle: the system Python CA store may miss issuers
         # that certifi carries (e.g. Nominatim's chain on some machines).
         self.geolocator = Nominatim(
-            user_agent="bus_tracker_hko",
+            user_agent="hk_daily_mcp",
             ssl_context=ssl.create_default_context(cafile=certifi.where()),
         )
         self.place_coordinates_cache = {}

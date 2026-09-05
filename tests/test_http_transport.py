@@ -68,7 +68,7 @@ def test_mcp_http_initialize_and_list_tools(client):
     session_id = response.headers.get("mcp-session-id")
     assert session_id, "initialize must return an mcp-session-id"
     result = _sse_payload(response.text)["result"]
-    assert result["serverInfo"]["name"] == "daily-data-assistant"
+    assert result["serverInfo"]["name"] == "hk-daily-mcp"
     assert result["serverInfo"]["version"] == __version__
 
     list_resp = client.post(

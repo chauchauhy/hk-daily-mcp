@@ -160,7 +160,7 @@ class KMBRouterUtil:
             # certifi CA bundle: the system Python CA store may miss issuers
             # that certifi carries (e.g. Nominatim's chain on some machines).
             geolocator = Nominatim(
-                user_agent="daily_data_assistant",
+                user_agent="hk_daily_mcp",
                 timeout=10,
                 ssl_context=ssl.create_default_context(cafile=certifi.where()),
             )

@@ -1,32 +1,43 @@
-# daily-data-assistant
+# hk-daily-mcp
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.14-blue.svg)
 
-Hong Kong daily-information assistant: KMB bus ETAs, HKO weather,
-MTR next-trains, ferry schedules, tides, public holidays, air quality
-and keyword news — exposed as both a FastAPI REST API and an MCP server.
+**Hong Kong daily information as MCP tools** — KMB bus ETAs, HKO weather,
+MTR next trains, ferry schedules, tides, public holidays, air quality (AQHI)
+and keyword news. Exposed both as an MCP server (17 tools over stdio or
+Streamable HTTP) and a FastAPI REST API — no API keys required except
+optionally for news.
 
-## Transports
+## Features
 
-- REST: `http://127.0.0.1:8000/router/...` (existing endpoints, unchanged)
-- MCP over Streamable HTTP: `http://127.0.0.1:8000/mcp` or `http://127.0.0.1:8000/mcp/` (mounted on the same app; `/mcp` 307-redirects to `/mcp/`, the official MCP SDK client follows it)
-- MCP over stdio: `uv run python mcp_server.py` (run from `src/`)
+- **17 MCP tools** across transport, weather & environment, calendar and daily
+  briefs (see [MCP tools](#mcp-tools-17)).
+- **Two transports**: MCP over stdio (for Claude Desktop / local hosts) and
+  MCP over Streamable HTTP mounted on the same FastAPI app.
+- **Keyless by default** — every feed is public open data; only the news
+  domain needs an optional `NEWS_API_KEY`.
+- **Offline fallback** — bundled `res/` snapshots (KMB routes/stops, HKO
+  station coords, MTR line/station table) keep tools working when a live API
+  is down.
+- **Broad client compatibility** — negotiates MCP protocol versions from
+  `2024-11-05` to `2026-07-28` automatically.
+- **REST + MCP in one process** — `GET /mcp` (HTTP transport) and
+  `GET /health` on the same server.
 
-## Setup
+## Quickstart
 
-Requires Python ≥ 3.14 and `uv`.
+Requires Python >= 3.14 and [`uv`](https://docs.astral.sh/uv/).
 
-- `uv sync`
-- Copy `.env.sample` to `.env` and fill in values (`.env` is gitignored).
-  Only `NEWS_API_KEY` is a real secret; every other feed is key-free.
-  See `.env.sample` for the full key list.
+```bash
+git clone https://github.com/chauchauhy/hk-daily-mcp.git
+cd hk-daily-mcp
 
-## Run
+uv sync                       # installs deps + dev tools (pytest, ruff)
+cp .env.sample .env           # optional; only NEWS_API_KEY is a secret
+```
 
-All commands assume `uv sync` has been run once from the repo root.
-
-**REST + MCP over HTTP** (single process, port 8000):
+**Run REST + MCP over HTTP** (single process, port 8000):
 
 ```bash
 cd src
@@ -35,8 +46,9 @@ uv run uvicorn main:app --host 127.0.0.1 --port 8000
 
 - REST endpoints: `http://127.0.0.1:8000/router/...`
 - MCP endpoint (Streamable HTTP): `http://127.0.0.1:8000/mcp`
+- Health check: `http://127.0.0.1:8000/health`
 
-**MCP over stdio** (for Claude Desktop / local MCP hosts):
+**Run the MCP server over stdio** (for Claude Desktop / local MCP hosts):
 
 ```bash
 cd src
@@ -45,47 +57,61 @@ uv run python mcp_server.py
 
 ## Connect from an MCP host
 
-The server works with any MCP-compatible host (Claude Desktop, OpenClaw,
-Hermes Agent, other MCP clients) over stdio or Streamable HTTP.
+Works with any MCP-compatible host (Claude Desktop, OpenClaw, Hermes Agent,
+other MCP clients) over stdio or Streamable HTTP.
 
-**stdio** — add to the host's MCP config (e.g. `claude_desktop_config.json`
-or the equivalent), pointing `cwd` at this repo's `src/` directory:
+**stdio** — add to the host's MCP config (e.g. `claude_desktop_config.json`),
+pointing `cwd` at this repo's `src/` directory:
 
 ```json
 {
   "mcpServers": {
-    "daily-data-assistant": {
+    "hk-daily-mcp": {
       "command": "uv",
       "args": ["run", "python", "mcp_server.py"],
-      "cwd": "/absolute/path/to/daily_data_assistant/src"
+      "cwd": "/absolute/path/to/hk-daily-mcp/src"
     }
   }
 }
 ```
 
-**Streamable HTTP** — start the REST + MCP server once (see Run above) and
+**Streamable HTTP** — start the REST + MCP server once (see Quickstart) and
 point the host at `http://127.0.0.1:8000/mcp`. Note that `/mcp` returns a
 307 redirect to `/mcp/`; the official MCP SDK client and most hosts follow
 it automatically — use `/mcp/` directly if your client does not follow
 redirects.
 
 The server is localhost-only by design: the SDK auto-enables DNS-rebinding
-protection, so requests from Host/Origin values other than 127.0.0.1,
-localhost or ::1 are rejected (421/403).
+protection, so requests from Host/Origin values other than `127.0.0.1`,
+`localhost` or `::1` are rejected (421/403).
 
-Notes:
+## MCP tools (17)
 
-- Bundled `res/` data resolves from the package location, so a missing
-  `BASE_FOLDER` or a foreign working directory does not break the tools.
-- `NEWS_API_KEY` is only needed for the news domains; every other tool works
-  without any keys.
+| Tool | Description |
+|---|---|
+| `kmb_get_all_routes` | All KMB bus routes |
+| `kmb_find_nearby_stops` | KMB stops near a lat/lon pair |
+| `kmb_find_nearby_stops_by_address` | Geocode an address, find KMB stops near it |
+| `kmb_get_bus_eta` | Live ETAs for stops near an address (optionally filtered by route) |
+| `kmb_get_route_itinerary` | Ordered stops of a route bound, each with live ETAs |
+| `mtr_get_next_train` | Live MTR next-train arrivals (codes or names) |
+| `ferry_get_schedule` | Ferry schedules: HKKF/Sun Ferry live ETA, Star Ferry timetable |
+| `hko_get_weather_forecast` | HKO local weather forecast |
+| `hko_get_nearby_weather` | Nearest HKO stations: temperature + humidity + rainfall + UV |
+| `hko_get_9day_forecast` | HKO 9-day forecast |
+| `hko_get_weather_warnings` | Active HKO weather warnings (typhoon, rainstorm…) |
+| `hko_get_special_weather_tips` | HKO special weather tips |
+| `hko_get_tide_predictions` | High/low tide times and heights for a station/date |
+| `hk_get_air_quality` | AQHI by monitoring station ('all' or a station/district) |
+| `hk_get_public_holidays` | Hong Kong public holidays for a year |
+| `daily_summary` | Legacy summary (weather + KMB ETAs + keyword news); frozen shape |
+| `hk_daily_brief` | Broad briefing: weather, holidays, tide, AQHI by default; transport/news opt-in |
 
-**Tests** (from the repo root):
+## REST API
 
-```bash
-uv run pytest
-uv run pytest -m "not network"   # skip live-API smoke tests
-```
+The same workflows are available as REST endpoints under `/router/...`
+(e.g. `/router/kmb_router/eta/address/{address}`, `/router/hko_router/{lang}/flw`).
+`GET /health` returns `{"status": "ok", "version": "0.1.0"}`.
 
 ## Data sources & licenses
 
@@ -104,6 +130,17 @@ The bundled offline snapshots under `res/` (KMB routes/stops, HKO station
 coordinates, MTR line/station table) are derived from those same open feeds
 and are used as a fallback when a live API is unavailable.
 
+## Project layout
+
+- `src/main.py` — FastAPI app, MCP mounted at `/mcp`, `/health`
+- `src/mcp_server.py` — MCP tools + stdio entrypoint
+- `src/routes/` — REST routers (thin, delegate to services)
+- `src/utils/*_service.py` — shared workflows used by REST and MCP
+- `src/models/` — pydantic models for KMB/HKO payloads
+- `res/` — bundled offline data (KMB stops/routes, HKO station coords,
+  MTR line/station table)
+- `tests/` — pytest suite including in-process HTTP transport tests
+
 ## Contributing
 
 Issues and pull requests are welcome. To get started:
@@ -120,28 +157,6 @@ Issues and pull requests are welcome. To get started:
 then add a registration test (`tests/test_*_registration`) and a
 `@pytest.mark.network` smoke test — mirror the existing tools.
 
-## MCP tools (17)
+## License
 
-- Transport: `kmb_get_all_routes`, `kmb_find_nearby_stops`,
-  `kmb_find_nearby_stops_by_address`, `kmb_get_bus_eta`,
-  `kmb_get_route_itinerary`, `mtr_get_next_train`, `ferry_get_schedule`
-  (`hkkf` / `sunferry` live ETA, `starferry` static timetable)
-- Weather & environment: `hko_get_weather_forecast`,
-  `hko_get_nearby_weather` (temperature + humidity + rainfall + UV),
-  `hko_get_9day_forecast`, `hko_get_weather_warnings`,
-  `hko_get_special_weather_tips`, `hko_get_tide_predictions`,
-  `hk_get_air_quality`
-- Calendar & briefs: `hk_get_public_holidays`, `daily_summary`
-  (legacy shape, frozen), `hk_daily_brief` (weather, holidays, tide and
-  air quality by default; transport and news are opt-in)
-
-## Layout
-
-- `src/main.py` — FastAPI app, MCP mounted at `/mcp`
-- `src/mcp_server.py` — MCP tools + stdio entrypoint
-- `src/routes/` — REST routers (thin, delegate to services)
-- `src/utils/*_service.py` — shared workflows used by REST and MCP
-- `src/models/` — pydantic models for KMB/HKO payloads
-- `res/` — bundled offline data (KMB stops/routes, HKO station coords,
-  MTR line/station table)
-- `tests/` — pytest suite using the in-memory MCP client
+[MIT](LICENSE)

@@ -1,4 +1,4 @@
-"""MCP server for daily-data-assistant.
+"""MCP server for hk-daily-mcp.
 
 Exposes the same KMB / HKO / daily-summary workflows as the FastAPI routers
 as MCP tools. Transport wiring:
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # not installed as a distributable, so importlib.metadata is unavailable).
 __version__ = "0.1.0"
 
-mcp = MCPServer("daily-data-assistant", version=__version__)
+mcp = MCPServer("hk-daily-mcp", version=__version__)
 
 
 @mcp.tool()

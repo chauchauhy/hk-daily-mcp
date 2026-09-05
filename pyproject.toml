@@ -1,11 +1,11 @@
 [project]
-name = "daily-data-assistant"
+name = "hk-daily-mcp"
 version = "0.1.0"
-description = "Hong Kong daily data assistant: KMB transport, HKO weather, news and more over FastAPI + MCP"
+description = "Hong Kong daily-information MCP server: KMB transport, HKO weather, MTR, ferries, tides, holidays, AQHI and news over FastAPI + MCP"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
-    { name = "daily-data-assistant contributors" }
+    { name = "hk-daily-mcp contributors" }
 ]
 keywords = [
     "hong-kong",
@@ -40,7 +40,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/chauchauhy/daily_data_assistant"
+Repository = "https://github.com/chauchauhy/hk-daily-mcp"
 
 [dependency-groups]
 dev = [
