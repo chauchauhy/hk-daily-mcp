@@ -19,7 +19,11 @@ from utils import air_quality_service, daily_summary_service, ferry_service, hol
 
 logger = logging.getLogger(__name__)
 
-mcp = MCPServer("daily-data-assistant")
+# Keep in sync with pyproject.toml [project].version (the package itself is
+# not installed as a distributable, so importlib.metadata is unavailable).
+__version__ = "0.1.0"
+
+mcp = MCPServer("daily-data-assistant", version=__version__)
 
 
 @mcp.tool()

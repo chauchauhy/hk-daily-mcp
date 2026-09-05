@@ -14,6 +14,7 @@ import utils.holiday_service as holiday_service
 import utils.mtr_service as mtr_service
 import utils.tide_service as tide_service
 import utils.httpx_util as httpx_util
+import utils.hko_util as hko_util
 from utils.daily_summary_service import _calc_remaining_minutes, _clean_text
 
 from helpers import FakeResponse
@@ -244,3 +245,55 @@ def test_calc_remaining_minutes():
     future = "2099-01-01T00:00:00+00:00"
     minutes = _calc_remaining_minutes(future)
     assert minutes is not None and minutes > 0
+
+# ---------- HKO nearby weather (bundle + geocode fallback, offline) ----------
+
+_RHRREAD = {
+    "rainfall": {
+        "data": [{"unit": "mm", "place": "中西區", "max": 0, "main": "0"}],
+        "startTime": "2026-09-05T10:00:00+08:00",
+        "endTime": "2026-09-05T11:00:00+08:00",
+    },
+    "warningMessage": [],
+    "icon": [50],
+    "iconUpdateTime": "2026-09-05T11:30:00+08:00",
+    "uvindex": {
+        "data": [{"place": "King's Park", "value": 3.0, "desc": "中", "message": ""}],
+        "recordDesc": "",
+    },
+    "updateTime": "2026-09-05T11:30:00+08:00",
+    "temperature": {
+        "data": [{"place": "King's Park", "value": 28, "unit": "C"}],
+        "recordTime": "2026-09-05T11:30:00+08:00",
+    },
+    "tcmessage": "",
+    "mintempFrom00To09": "",
+    "rainfallFrom00To12": "",
+    "rainfallLastMonth": "",
+    "rainfallJanuaryToLastMonth": "",
+    "humidity": {
+        "recordTime": "2026-09-05T11:30:00+08:00",
+        "data": [{"unit": "percent", "value": 70, "place": "Hong Kong Observatory"}],
+    },
+}
+
+
+@pytest.mark.anyio
+async def test_hko_nearby_weather_offline(fake_http, monkeypatch):
+    """Bundle coords + to_thread geocode fallback produce distances offline."""
+    monkeypatch.setattr(
+        hko_util.HKORouterUtil, "_geocode_place",
+        lambda self, place, region="Hong Kong": (22.3, 114.1))
+    fake_http.set_response(FakeResponse(200, json_data=_RHRREAD))
+
+    util = hko_util.get_global_hko_router_util()
+    payload = await util.find_nearby_weather_stations("Tsim Sha Tsui", lang="en", top_n=1)
+
+    assert "error" not in payload, payload
+    assert payload["user_coordinates"] == {"lat": 22.3, "lon": 114.1}
+    assert payload["nearby_stations"][0]["place"] == "King's Park"
+    assert isinstance(payload["nearby_stations"][0]["distance_km"], float)
+    assert payload["nearby_stations"][0]["distance_km"] >= 0
+    assert payload["nearby_humidity"]["place"] == "Hong Kong Observatory"
+    assert payload["nearby_rainfall"]["place"] == "中西區"
+    assert payload["uvindex"]["data"][0]["value"] == 3.0

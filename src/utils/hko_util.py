@@ -95,7 +95,7 @@ class HKORouterUtil:
         cache_key = f"{place_name}, {region}"
         if cache_key not in self.place_coordinates_cache:
             await asyncio.sleep(1.1)
-        return self._geocode_place(place_name, region)
+        return await asyncio.to_thread(self._geocode_place, place_name, region)
 
     def _geocode_place(self, place_name: str, region: str = "Hong Kong") -> tuple:
         """
@@ -149,7 +149,7 @@ class HKORouterUtil:
             logger.info(f"Using pre-computed coordinates for '{address}': {user_coords}")
         else:
             logger.info(f"Geocoding user address: {address}")
-            user_coords = self._geocode_place(address, region="Hong Kong")
+            user_coords = await asyncio.to_thread(self._geocode_place, address, "Hong Kong")
             if not user_coords:
                 logger.error(f"Could not geocode user address: {address}")
                 return {"error": f"Could not geocode address: {address}"}

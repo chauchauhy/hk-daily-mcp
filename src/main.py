@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import uvicorn
 
-from mcp_server import mcp, mcp_http_app
+from mcp_server import __version__, mcp, mcp_http_app
 from routes import app_router
 from utils.env_load_util import EnvLoadUtil
 
@@ -28,6 +28,11 @@ app = FastAPI(lifespan=lifespan)
 app.include_router(app_router, prefix="/router", tags=["kmb_router"])
 # MCP endpoint is exactly /mcp (mount prefix + streamable_http_path="/").
 app.mount("/mcp", mcp_http_app)
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "version": __version__}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host=EnvLoadUtil.load_env("APPLICATION_SERVER_HOST", "127.0.0.1"),

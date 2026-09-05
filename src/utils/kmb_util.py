@@ -1,4 +1,5 @@
 # pylint: disable=W0603,E0402,W1203
+import asyncio
 import logging 
 import json 
 import ssl
@@ -173,7 +174,7 @@ class KMBRouterUtil:
 
     @staticmethod
     async def load_near_stop_with_address(address: str) -> list:
-        location = KMBRouterUtil._geocode_address(address)
+        location = await asyncio.to_thread(KMBRouterUtil._geocode_address, address)
         if location is None:
             logger.error(f"Failed to geocode address: {address}. No location found.")
             return []
@@ -182,7 +183,7 @@ class KMBRouterUtil:
 
     @staticmethod
     async def get_lat_lon_from_address(address: str) -> dict:
-        location = KMBRouterUtil._geocode_address(address)
+        location = await asyncio.to_thread(KMBRouterUtil._geocode_address, address)
         return {"latitude": location.latitude, "longitude": location.longitude} if location else {"error": "Address not found"}
 
 _GOLBAL_KMB_UTIL_INSTANCE = None

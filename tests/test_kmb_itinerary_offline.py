@@ -85,3 +85,12 @@ async def test_inbound_filters_outbound_etas(fake_kmb):
 async def test_invalid_bound_rejected():
     payload = await kmb_service.get_route_itinerary("1", "sideways")
     assert "error" in payload
+
+@pytest.mark.anyio
+async def test_stop_eta_workflow_geocode_failure(monkeypatch):
+    """Geocoding failure keeps returning the friendly error (to_thread path)."""
+    monkeypatch.setattr(
+        kmb_util.KMBRouterUtil, "_geocode_address", lambda address: None)
+    payload = await kmb_service.get_stop_eta_workflow("Somewhere Nowhere")
+    assert payload.get("error") == "Address not found"
+    assert payload.get("details")

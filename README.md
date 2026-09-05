@@ -7,7 +7,7 @@ and keyword news — exposed as both a FastAPI REST API and an MCP server.
 ## Transports
 
 - REST: `http://127.0.0.1:8000/router/...` (existing endpoints, unchanged)
-- MCP over Streamable HTTP: `http://127.0.0.1:8000/mcp` (mounted on the same app)
+- MCP over Streamable HTTP: `http://127.0.0.1:8000/mcp` or `http://127.0.0.1:8000/mcp/` (mounted on the same app; `/mcp` 307-redirects to `/mcp/`, the official MCP SDK client follows it)
 - MCP over stdio: `uv run python mcp_server.py` (run from `src/`)
 
 ## Setup
@@ -61,7 +61,14 @@ or the equivalent), pointing `cwd` at this repo's `src/` directory:
 ```
 
 **Streamable HTTP** — start the REST + MCP server once (see Run above) and
-point the host at `http://127.0.0.1:8000/mcp`.
+point the host at `http://127.0.0.1:8000/mcp`. Note that `/mcp` returns a
+307 redirect to `/mcp/`; the official MCP SDK client and most hosts follow
+it automatically — use `/mcp/` directly if your client does not follow
+redirects.
+
+The server is localhost-only by design: the SDK auto-enables DNS-rebinding
+protection, so requests from Host/Origin values other than 127.0.0.1,
+localhost or ::1 are rejected (421/403).
 
 Notes:
 
