@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from utils.env_load_util import EnvLoadUtil
 from utils import kmb_util
-from utils import air_quality_service, holiday_service, kmb_service, tide_service, weather_service
+from utils import air_quality_service, holiday_service, kmb_planner_service, kmb_service, tide_service, weather_service
 from utils.hko_util import get_global_hko_router_util
 
 logger = logging.getLogger(__name__)
@@ -166,10 +166,15 @@ async def _brief_weather(address: str, lang: str) -> dict:
 
 
 async def get_daily_brief(address: str, lang: str = "tc", domains: list | None = None,
-                          route: str | None = None,
+                          route: str | None = None, destination_address: str | None = None,
                           tide_station: str = "CCH", date: str | None = None,
                           year: int | None = None, aqhi_station: str = "all") -> dict:
     """Broad daily briefing across selected domains (transport is opt-in).
+
+    When destination_address is given and the transport domain is selected, the
+    briefing additionally returns direct_routes (no-transfer lines with live
+    ETAs) and shortest_route (deterministic Dijkstra journey, transfers allowed)
+    connecting the origin address to the destination address.
 
     Every domain failure becomes an {"error": ...} section instead of failing
     the whole briefing.
@@ -189,6 +194,12 @@ async def get_daily_brief(address: str, lang: str = "tc", domains: list | None =
         tasks["weather"] = _brief_weather(address, lang)
     if "transport" in selected:
         tasks["transport"] = kmb_service.get_stop_eta_workflow(address, route)
+        if destination_address:
+            logger.info(f"Routing to destination: {destination_address}")
+            tasks["direct_routes"] = kmb_service.find_route_between_addresses(
+                address, destination_address, include_eta=True)
+            tasks["shortest_route"] = kmb_planner_service.plan_shortest_route(
+                address, destination_address)
     if "holidays" in selected:
         tasks["holidays"] = holiday_service.get_public_holidays(
             year or datetime.now().year, HOLIDAY_LANGS.get(lang, "en"))
@@ -199,6 +210,8 @@ async def get_daily_brief(address: str, lang: str = "tc", domains: list | None =
 
     results = await asyncio.gather(*tasks.values(), return_exceptions=True)
     brief = {"address": address, "lang": lang, "domains": selected}
+    if destination_address and "transport" in selected:
+        brief["destination"] = destination_address
     for key, value in zip(tasks.keys(), results):
         brief[key] = _ok_or_error(value)
     return brief

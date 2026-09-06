@@ -15,7 +15,7 @@ import logging
 
 from mcp.server import MCPServer
 
-from utils import air_quality_service, daily_summary_service, ferry_service, holiday_service, kmb_service, mtr_service, tide_service, weather_service
+from utils import air_quality_service, daily_summary_service, ferry_service, holiday_service, kmb_planner_service, kmb_service, mtr_service, tide_service, weather_service
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,36 @@ async def kmb_get_route_itinerary(route: str, bound: str = "outbound", service_t
     bound is 'inbound' or 'outbound'.
     """
     return await kmb_service.get_route_itinerary(route, bound, service_type)
+
+@mcp.tool()
+async def kmb_find_route_between_addresses(origin_address: str, destination_address: str,
+                                           radius: float | None = None, top_n: int = 5,
+                                           include_eta: bool = False) -> dict:
+    """Find direct KMB bus routes connecting an origin address to a destination address.
+
+    Geocodes both addresses, finds the KMB stops nearest to each, then returns
+    the routes whose stop sequence travels past both (ranked by walking
+    distance; no transfers). Set include_eta=True to attach live ETAs at the
+    boarding stop for each suggested route.
+    """
+    return await kmb_service.find_route_between_addresses(
+        origin_address, destination_address, radius=radius, top_n=top_n, include_eta=include_eta)
+
+
+@mcp.tool()
+async def kmb_plan_shortest_route(origin_address: str, destination_address: str,
+                                  radius: float | None = None,
+                                  max_transfer_walk_km: float = 0.15,
+                                  transfer_penalty_km: float = 0.6) -> dict:
+    """Plan the shortest KMB journey (walk + bus, transfers allowed) between two addresses.
+
+    Fully deterministic Dijkstra over the KMB network - no AI or routing API.
+    Returns ordered legs (walk / bus with boarding & alighting stops).
+    """
+    return await kmb_planner_service.plan_shortest_route(
+        origin_address, destination_address, radius=radius,
+        max_transfer_walk_km=max_transfer_walk_km,
+        transfer_penalty_km=transfer_penalty_km)
 
 
 @mcp.tool()
@@ -130,12 +160,17 @@ async def ferry_get_schedule(operator: str, route: str, direction: str | None = 
 
 @mcp.tool()
 async def hk_daily_brief(address: str, lang: str = "tc", domains: list[str] | None = None,
-                         route: str | None = None,
+                         route: str | None = None, destination_address: str | None = None,
                          tide_station: str = "CCH", date: str | None = None,
                          year: int | None = None, aqhi_station: str = "all") -> dict:
-    """Broad daily briefing. Default domains: weather, holidays, tide, air_quality; transport is opt-in."""
+    """Broad daily briefing. Default domains: weather, holidays, tide, air_quality; transport is opt-in.
+
+    When destination_address is given with the transport domain, the brief also
+    returns direct_routes (ranked no-transfer lines, with live ETAs) and
+    shortest_route (deterministic Dijkstra journey, transfers allowed).
+    """
     return await daily_summary_service.get_daily_brief(
-        address, lang, domains, route, tide_station, date, year, aqhi_station)
+        address, lang, domains, route, destination_address, tide_station, date, year, aqhi_station)
 
 
 # Starlette app served by the host (mounted at /mcp in main.py).

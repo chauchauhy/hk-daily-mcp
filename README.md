@@ -5,13 +5,13 @@
 
 **Hong Kong daily information as MCP tools** — KMB bus ETAs, HKO weather,
 MTR next trains, ferry schedules, tides, public holidays, air quality (AQHI).
-Exposed both as an MCP server (17 tools over stdio or Streamable HTTP) and
+Exposed both as an MCP server (19 tools over stdio or Streamable HTTP) and
 a FastAPI REST API — fully keyless, no API keys required.
 
 ## Features
 
-- **17 MCP tools** across transport, weather & environment, calendar and daily
-  briefs (see [MCP tools](#mcp-tools-17)).
+- **19 MCP tools** across transport, weather & environment, calendar and daily
+  briefs (see [MCP tools](#mcp-tools-19)).
 - **Two transports**: MCP over stdio (for Claude Desktop / local hosts) and
   MCP over Streamable HTTP mounted on the same FastAPI app.
 - **Fully keyless** — every feed is public open data; no API keys required.
@@ -83,7 +83,7 @@ The server is localhost-only by design: the SDK auto-enables DNS-rebinding
 protection, so requests from Host/Origin values other than `127.0.0.1`,
 `localhost` or `::1` are rejected (421/403).
 
-## MCP tools (17)
+## MCP tools (19)
 
 | Tool | Description |
 |---|---|
@@ -92,6 +92,8 @@ protection, so requests from Host/Origin values other than `127.0.0.1`,
 | `kmb_find_nearby_stops_by_address` | Geocode an address, find KMB stops near it |
 | `kmb_get_bus_eta` | Live ETAs for stops near an address (optionally filtered by route) |
 | `kmb_get_route_itinerary` | Ordered stops of a route bound, each with live ETAs |
+| `kmb_find_route_between_addresses` | Direct KMB routes connecting an origin address to a destination address, ranked by walking distance |
+| `kmb_plan_shortest_route` | Shortest KMB journey (walk + bus, transfers allowed) between two addresses, via deterministic Dijkstra — no AI |
 | `mtr_get_next_train` | Live MTR next-train arrivals (codes or names) |
 | `ferry_get_schedule` | Ferry schedules: HKKF/Sun Ferry live ETA, Star Ferry timetable |
 | `hko_get_weather_forecast` | HKO local weather forecast |
@@ -103,26 +105,26 @@ protection, so requests from Host/Origin values other than `127.0.0.1`,
 | `hk_get_air_quality` | AQHI by monitoring station ('all' or a station/district) |
 | `hk_get_public_holidays` | Hong Kong public holidays for a year |
 | `daily_summary` | Legacy summary (weather + KMB ETAs); frozen shape |
-| `hk_daily_brief` | Broad briefing: weather, holidays, tide, AQHI by default; transport opt-in |
+| `hk_daily_brief` | Broad briefing: weather, holidays, tide, AQHI by default; transport opt-in; add `destination_address` to also get direct routes + shortest KMB journey |
 
 ## REST API
 
 The same workflows are available as REST endpoints under `/router/...`
-(e.g. `/router/kmb_router/eta/address/{address}`, `/router/hko_router/{lang}/flw`).
+(e.g. `/router/kmb_router/eta/address/{address}`, `/router/kmb_router/shortest_route/address/{origin}/{destination}`, `/router/hko_router/{lang}/flw`).
 `GET /health` returns `{"status": "ok", "version": "0.1.0"}`.
 
 ## Data sources & licenses
 
 The service reads from public Hong Kong data feeds (no API keys required):
 
-- KMB bus routes / stops / ETAs — `data.etabus.gov.hk` (open data)
+- KMB bus routes / stops / route-stops / ETAs — `data.etabus.gov.hk` (open data)
 - MTR next-train schedules — `rt.data.gov.hk`
 - HKO weather, tides — `data.weather.gov.hk`
 - Air Quality Health Index (AQHI) — `aqhi.gov.hk` (EPD)
 - Public holidays — `www.1823.gov.hk`
 - Ferries — `hkkfeta.com`, `sunferry.com.hk`, `starferry.com.hk`
 
-The bundled offline snapshots under `res/` (KMB routes/stops, HKO station
+The bundled offline snapshots under `res/` (KMB routes/stops/route-stops, HKO station
 coordinates, MTR line/station table) are derived from those same open feeds
 and are used as a fallback when a live API is unavailable.
 
@@ -133,9 +135,10 @@ and are used as a fallback when a live API is unavailable.
 - `src/routes/` — REST routers (thin, delegate to services)
 - `src/utils/*_service.py` — shared workflows used by REST and MCP
 - `src/models/` — pydantic models for KMB/HKO payloads
-- `res/` — bundled offline data (KMB stops/routes, HKO station coords,
+- `res/` — bundled offline data (KMB stops/routes/route-stops, HKO station coords,
   MTR line/station table)
 - `tests/` — pytest suite including in-process HTTP transport tests
+- `scripts/build_kmb_route_stop_snapshot.py` — regenerate `res/route_stop_data.json` from the live KMB feed
 
 ## Contributing
 

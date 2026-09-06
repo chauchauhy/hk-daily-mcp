@@ -2,7 +2,7 @@
 import logging
 
 from fastapi import APIRouter
-from utils import kmb_service
+from utils import kmb_planner_service, kmb_service
 
 logger = logging.getLogger(__name__)
 
@@ -61,3 +61,36 @@ async def get_eta_by_address_and_route(address: str, route_number: str):
     except Exception as e:
         logger.error(f"Error in get_eta_by_address workflow: {str(e)}")
         return {"error": str(e), "address": address, "details": "An error occurred during the ETA lookup workflow"}
+
+
+@router.get("/shortest_route/address/{origin_address}/{destination_address}")
+async def get_shortest_route(origin_address: str, destination_address: str,
+                             radius: float | None = None,
+                             max_transfer_walk_km: float = 0.15,
+                             transfer_penalty_km: float = 0.6):
+    """Plan the shortest KMB journey (walk + bus, transfers allowed) between two addresses."""
+    logger.info(f"Planning shortest KMB route between: {origin_address} -> {destination_address}")
+    try:
+        return await kmb_planner_service.plan_shortest_route(
+            origin_address, destination_address, radius=radius,
+            max_transfer_walk_km=max_transfer_walk_km,
+            transfer_penalty_km=transfer_penalty_km)
+    except Exception as e:
+        logger.error(f"Error in get_shortest_route: {str(e)}")
+        return {"error": str(e), "origin_address": origin_address, "destination_address": destination_address,
+                "details": "An error occurred during the shortest-route workflow"}
+
+
+@router.get("/route_between/address/{origin_address}/{destination_address}")
+async def get_route_between_addresses(origin_address: str, destination_address: str,
+                                      radius: float | None = None, top_n: int = 5,
+                                      include_eta: bool = False):
+    """Find direct KMB routes connecting an origin address to a destination address."""
+    logger.info(f"Finding KMB routes between: {origin_address} -> {destination_address}")
+    try:
+        return await kmb_service.find_route_between_addresses(
+            origin_address, destination_address, radius=radius, top_n=top_n, include_eta=include_eta)
+    except Exception as e:
+        logger.error(f"Error in get_route_between_addresses: {str(e)}")
+        return {"error": str(e), "origin_address": origin_address, "destination_address": destination_address,
+                "details": "An error occurred during the route lookup workflow"}

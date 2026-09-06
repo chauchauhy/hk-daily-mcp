@@ -2,6 +2,8 @@
 """Shared KMB workflows used by both the FastAPI routers and the MCP tools."""
 import logging
 
+from haversine import haversine, Unit
+
 from utils import kmb_util
 from utils.env_load_util import EnvLoadUtil
 
@@ -232,3 +234,225 @@ async def get_route_itinerary(route: str, bound: str = "outbound", service_type:
     except Exception as e:
         logger.error(f"Error in get_route_itinerary: {str(e)}")
         return {"error": str(e), "route": route, "bound": normalized}
+
+
+BOUND_WORD = {"O": "outbound", "I": "inbound"}
+
+
+def _distance_km(coord_a: tuple, coord_b: tuple) -> float:
+    """Great-circle distance in km between two (lat, lon) tuples."""
+    return round(haversine(coord_a, coord_b, unit=Unit.KILOMETERS), 3)
+
+
+def _route_lane_meta(lanes) -> dict:
+    """Index KMB router lanes by (route, bound, service_type) for terminal names."""
+    meta = {}
+    for lane in lanes:
+        meta[(lane.route.upper(), lane.bound, lane.service_type)] = lane
+    return meta
+
+
+async def _load_route_lane_meta() -> dict:
+    """Fetch the KMB route list (live with offline fallback) and index it.
+
+    Terminal names are enrichment only: on failure return {} so the route
+    suggestions still come back, just without orig/dest terminal labels.
+    """
+    try:
+        data = await kmb_util.KMBRouterUtil.fetch_all_kmb_router()
+        return _route_lane_meta(data.data) if data is not None else {}
+    except Exception as e:
+        logger.error(f"Failed to load route lane meta: {str(e)}")
+        return {}
+
+
+def rank_direct_routes(origin_stops: list, dest_stops: list,
+                       origin_ll: tuple, dest_ll: tuple,
+                       lane_stops: dict, top_n: int = 5) -> list:
+    """Find direct KMB lanes whose stop sequence joins an origin-area stop to a destination-area stop.
+
+    origin_stops/dest_stops: KMB Stop objects within walking range of each address.
+    lane_stops: {(route, bound, service_type): [RouteStop...]} ordered by seq.
+    Returns a list ranked by (total walking km, stops between, route number).
+    """
+    origin_dists = {s.stop: _distance_km(origin_ll, (float(s.lat), float(s.long))) for s in origin_stops}
+    dest_dists = {s.stop: _distance_km(dest_ll, (float(s.lat), float(s.long))) for s in dest_stops}
+
+    candidates = []
+    for (route, bound, service_type), stops in lane_stops.items():
+        positions = {entry.stop: i for i, entry in enumerate(stops)}
+        if not positions:
+            continue
+        best = None
+        for origin_stop in origin_stops:
+            origin_pos = positions.get(origin_stop.stop)
+            if origin_pos is None:
+                continue
+            for dest_stop in dest_stops:
+                dest_pos = positions.get(dest_stop.stop)
+                if dest_pos is None:
+                    continue
+                # A lane is a valid direct connection only when the bus reaches
+                # the origin-area stop BEFORE the destination-area stop. The
+                # bound label ("O"/"I") is about which terminal the lane runs
+                # toward, not whether it connects origin -> destination, so the
+                # same position rule applies to both bounds.
+                if origin_pos >= dest_pos:
+                    continue
+                walk_km = round(origin_dists[origin_stop.stop] + dest_dists[dest_stop.stop], 3)
+                between = abs(dest_pos - origin_pos) - 1
+                score = (walk_km, between)
+                if best is None or score < best[0]:
+                    best = (score, origin_stop, dest_stop, origin_pos, dest_pos)
+        if best is None:
+            continue
+        (walk_km, between), origin_stop, dest_stop, origin_pos, dest_pos = best
+        candidates.append({
+            "route": route,
+            "bound": bound,
+            "direction": BOUND_WORD.get(bound, bound),
+            "service_type": service_type,
+            "boarding_stop": {
+                "stop_id": origin_stop.stop,
+                "stop_name_en": origin_stop.name_en,
+                "stop_name_tc": origin_stop.name_tc,
+                "stop_name_sc": origin_stop.name_sc,
+                "latitude": origin_stop.lat,
+                "longitude": origin_stop.long,
+                "distance_km_from_origin": origin_dists[origin_stop.stop],
+            },
+            "alighting_stop": {
+                "stop_id": dest_stop.stop,
+                "stop_name_en": dest_stop.name_en,
+                "stop_name_tc": dest_stop.name_tc,
+                "stop_name_sc": dest_stop.name_sc,
+                "latitude": dest_stop.lat,
+                "longitude": dest_stop.long,
+                "distance_km_from_destination": dest_dists[dest_stop.stop],
+            },
+            "stops_between": between,
+            "walk_km_total": walk_km,
+        })
+
+    candidates.sort(key=lambda c: (c["walk_km_total"], c["stops_between"], c["route"]))
+    return candidates[:top_n]
+
+
+async def _attach_etas(route_suggestions: list) -> list:
+    """Attach the next live ETAs at each suggested boarding stop for its route."""
+    for suggestion in route_suggestions:
+        stop_id = suggestion["boarding_stop"]["stop_id"]
+        route = suggestion["route"]
+        bound = suggestion["bound"]
+        try:
+            eta_response = await kmb_util.KMBRouterUtil.fetch_kmb_eta_stop_by_stop_id(stop_id)
+            etas = []
+            if eta_response and eta_response.data:
+                for eta in eta_response.data:
+                    if eta.route == route and eta.dir == bound:
+                        etas.append({
+                            "eta": eta.eta,
+                            "eta_seq": eta.eta_seq,
+                            "destination_en": eta.dest_en,
+                            "destination_tc": eta.dest_tc,
+                            "destination_sc": eta.dest_sc,
+                            "remarks_en": eta.rmk_en,
+                            "remarks_tc": eta.rmk_tc,
+                            "remarks_sc": eta.rmk_sc,
+                        })
+            suggestion["next_buses"] = sorted(etas, key=lambda e: e.get("eta") or "")[:3]
+        except Exception as eta_error:
+            logger.error(f"Failed to fetch ETA for stop {stop_id} route {route}: {str(eta_error)}")
+            suggestion["next_buses"] = []
+    return route_suggestions
+
+
+async def find_route_between_addresses(origin_address: str, destination_address: str,
+                                       radius: float | None = None, top_n: int = 5,
+                                       include_eta: bool = False) -> dict:
+    """Find direct KMB routes connecting an origin address to a destination address.
+
+    Workflow: geocode both addresses -> find stops within walking range of each
+    -> join with the route-stop index -> rank lanes that travel past both stops.
+    """
+    origin_ll = await kmb_util.KMBRouterUtil.get_lat_lon_from_address(origin_address)
+    if "error" in origin_ll:
+        logger.error(f"Geocoding failed for origin address: {origin_address}")
+        return {
+            "error": "Origin address not found",
+            "origin_address": origin_address,
+            "details": "Could not geocode the origin address. Please check the address and try again.",
+        }
+    dest_ll = await kmb_util.KMBRouterUtil.get_lat_lon_from_address(destination_address)
+    if "error" in dest_ll:
+        logger.error(f"Geocoding failed for destination address: {destination_address}")
+        return {
+            "error": "Destination address not found",
+            "destination_address": destination_address,
+            "details": "Could not geocode the destination address. Please check the address and try again.",
+        }
+
+    search_radius = radius if radius is not None else float(
+        EnvLoadUtil.load_env("KMB_ROUTE_PLAN_RADIUS", "0.005"))
+    origin_stops = await kmb_util.KMBRouterUtil.load_near_stop_with_lat_lon(
+        str(origin_ll["latitude"]), str(origin_ll["longitude"]), radius=search_radius)
+    dest_stops = await kmb_util.KMBRouterUtil.load_near_stop_with_lat_lon(
+        str(dest_ll["latitude"]), str(dest_ll["longitude"]), radius=search_radius)
+
+    if not origin_stops or not dest_stops:
+        logger.warning(f"No stops found near origin/destination (radius {search_radius})")
+        return {
+            "origin_address": origin_address,
+            "destination_address": destination_address,
+            "origin_latitude": origin_ll["latitude"],
+            "origin_longitude": origin_ll["longitude"],
+            "destination_latitude": dest_ll["latitude"],
+            "destination_longitude": dest_ll["longitude"],
+            "search_radius_degrees": search_radius,
+            "routes_count": 0,
+            "routes": [],
+            "message": "No bus stops found near one or both addresses. Try a different address or a larger radius.",
+        }
+
+    index = await kmb_util.KMBRouterUtil.load_route_stop_index()
+    if not index["lane_stops"]:
+        logger.error("Route-stop index unavailable")
+        return {
+            "error": "Route stop index unavailable",
+            "details": "The bundled KMB route-stop data could not be loaded. Try again later.",
+        }
+
+    suggestions = rank_direct_routes(
+        origin_stops, dest_stops,
+        (origin_ll["latitude"], origin_ll["longitude"]),
+        (dest_ll["latitude"], dest_ll["longitude"]),
+        index["lane_stops"], top_n=top_n)
+
+    lane_meta = await _load_route_lane_meta()
+    for suggestion in suggestions:
+        lane = lane_meta.get((suggestion["route"], suggestion["bound"], suggestion["service_type"]))
+        if lane is not None:
+            suggestion["orig_en"] = lane.orig_en
+            suggestion["orig_tc"] = lane.orig_tc
+            suggestion["orig_sc"] = lane.orig_sc
+            suggestion["dest_en"] = lane.dest_en
+            suggestion["dest_tc"] = lane.dest_tc
+            suggestion["dest_sc"] = lane.dest_sc
+
+    if include_eta and suggestions:
+        suggestions = await _attach_etas(suggestions)
+
+    logger.info(f"Found {len(suggestions)} direct route(s) between the two addresses")
+    return {
+        "origin_address": origin_address,
+        "destination_address": destination_address,
+        "origin_latitude": origin_ll["latitude"],
+        "origin_longitude": origin_ll["longitude"],
+        "destination_latitude": dest_ll["latitude"],
+        "destination_longitude": dest_ll["longitude"],
+        "search_radius_degrees": search_radius,
+        "routes_count": len(suggestions),
+        "routes": suggestions,
+        "message": "Direct KMB routes (no transfers) ranked by walking distance. "
+                   "Boarding and alighting stops are the nearest to each address.",
+    }

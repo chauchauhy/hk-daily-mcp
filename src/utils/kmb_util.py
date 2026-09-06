@@ -17,6 +17,7 @@ from .httpx_util import get_global_httpx_util
 from models.kmb.stop_eta.kmb_stop_eta import KMBStopETAResponse
 from models.kmb.stop.stop_response import StopListResponse
 from models.kmb.router.route_lane import KMBRouterResponse
+from models.kmb.route_stop.route_stop_list import RouteStopListResponse
 
 logger = logging.getLogger(__name__)
 
@@ -132,26 +133,66 @@ class KMBRouterUtil:
         except Exception as e:
             logger.error(f"Failed to load KMB stop data from file. Error: {str(e)}")
             return None
+
+    @staticmethod
+    async def load_route_stop_data_from_file() -> RouteStopListResponse | None:
+        try:
+            file_path = EnvLoadUtil.res_path(EnvLoadUtil.load_env("KMB_ROUTE_STOP_DATA", "route_stop_data.json"))
+            with open(file_path, "r", encoding="utf-8") as f:
+                route_stop_list = RouteStopListResponse(**json.load(f))
+                logger.info(f"Successfully loaded KMB route-stop data from file. Total entries: {len(route_stop_list.data)}")
+                return route_stop_list
+        except Exception as e:
+            logger.error(f"Failed to load KMB route-stop data from file. Error: {str(e)}")
+            return None
+
+    @staticmethod
+    async def load_route_stop_index() -> dict:
+        """Build an in-memory index over the bundled route-stop snapshot.
+
+        Returns a dict with:
+        - lane_stops: {(route, bound, service_type): [RouteStop...]} with each
+          lane's stops sorted by seq (the ordered itinerary of that lane).
+        - stop_lanes: {stop_id: [(route, bound, service_type, seq), ...]}
+
+        Used by the route finder to see which lanes actually pass through a
+        pair of stops (and in which order).
+        """
+        data = await KMBRouterUtil.load_route_stop_data_from_file()
+        if data is None or not data.data:
+            return {"lane_stops": {}, "stop_lanes": {}}
+        lane_stops: dict[tuple, list] = {}
+        stop_lanes: dict[str, list] = {}
+        for entry in data.data:
+            key = (entry.route.upper(), entry.bound, entry.service_type)
+            lane_stops.setdefault(key, []).append(entry)
+            stop_lanes.setdefault(entry.stop, []).append(
+                (entry.route.upper(), entry.bound, entry.service_type, entry.seq))
+        for key in lane_stops:
+            lane_stops[key].sort(key=lambda e: e.seq)
+        logger.info(f"Built route-stop index: {len(lane_stops)} lanes, {len(stop_lanes)} stops")
+        return {"lane_stops": lane_stops, "stop_lanes": stop_lanes}
     
     @staticmethod
-    async def load_near_stop_with_lat_lon(lat: str, lon: str) -> list:
+    async def load_near_stop_with_lat_lon(lat: str, lon: str, radius: float | None = None) -> list:
         util_instance = get_global_kmb_util()
         if not util_instance._stop_cache["stops"]:
             logger.info("No stop data in cache, fetching from API...")
             if await util_instance.fetch_kmb_stop() is None:
                 logger.error("Failed to fetch stop data, cannot find nearby stops.")
                 return []
-            
+
         cached_stop_list: StopListResponse = util_instance.get_cached_stop_dict().get("stops")
-        
+
         query_point = [float(lat), float(lon)]
         tree: KDTree = util_instance.get_cached_stop_dict().get("tree")
-        distance = float(EnvLoadUtil.load_env("KMB_NEAR_STOP_DISTANCE", 0.003))
+        distance = float(radius) if radius is not None else float(
+            EnvLoadUtil.load_env("KMB_NEAR_STOP_DISTANCE", 0.003))
         indices = tree.query_ball_point(query_point, distance, p=np.inf)
-        
+
         nearby_stops = [cached_stop_list.data[i] for i in indices]
-        
-        logger.info(f"Found {len(nearby_stops)} stops near lat: {lat}, lon: {lon}")
+
+        logger.info(f"Found {len(nearby_stops)} stops near lat: {lat}, lon: {lon} (radius {distance})")
         return nearby_stops
     
     @staticmethod
